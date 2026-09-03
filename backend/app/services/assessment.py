@@ -23,7 +23,12 @@ HISTORY_DAYS = 30
 
 
 def _iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return as_utc(dt).isoformat().replace("+00:00", "Z")
+
+
+def as_utc(dt: datetime) -> datetime:
+    """SQLite returns naive datetimes; treat them as UTC."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def fetch_readings(farm: models.Farm, scenario: str | None = None, days: int = HISTORY_DAYS) -> tuple[list[Reading], str, str | None]:
@@ -147,7 +152,7 @@ def risk_summary(row: models.RiskAssessment | None) -> dict | None:
     return {
         "assessment_id": row.id,
         "farm_id": row.farm_id,
-        "assessed_at": row.assessed_at,
+        "assessed_at": as_utc(row.assessed_at),
         "overall_score": row.overall_score,
         "overall_level": row.overall_level,
         "overall_label": row.overall_label,

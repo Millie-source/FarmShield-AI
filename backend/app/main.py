@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import farms, risk
+from app.routers import farms, partners, risk
 from app.seed import seed_if_empty
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -66,6 +66,7 @@ app.add_middleware(
 app.include_router(farms.router)
 app.include_router(risk.router)
 app.include_router(risk.scenario_router)
+app.include_router(partners.router)
 
 
 @app.get("/health", tags=["system"], summary="Liveness check")

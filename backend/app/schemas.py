@@ -376,3 +376,92 @@ class ApiError(BaseModel):
     model_config = ConfigDict(json_schema_extra={"example": {"detail": "Farm 42 not found"}})
 
     detail: str
+
+
+# ----------------------------------------------------------------- partners ----
+
+
+class PartnerInfoOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"client": "acme-insurance", "organisation_type": "insurer", "request_count": 42, "last_used_at": "2026-09-03T08:00:00Z"}}
+    )
+
+    client: str
+    organisation_type: str
+    request_count: int
+    last_used_at: datetime | None
+
+
+class BulkSummary(BaseModel):
+    high_risk: int
+    medium_risk: int
+    low_risk: int
+    insurance_triggered: int
+    mean_score: float | None
+
+
+class BulkRiskOut(BaseModel):
+    count: int = Field(..., description="Number of farms successfully scored")
+    summary: BulkSummary = Field(..., description="Portfolio roll-up")
+    results: list[RiskOut]
+    errors: list[dict[str, Any]] = Field(default_factory=list, description="Per-farm failures (unknown id etc.)")
+
+
+class TriggerCheckIn(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "farm_id": 1,
+                "policy": {"type": "drought", "window_days": 21, "rainfall_threshold_mm": 30, "critical_stages_only": True},
+            }
+        }
+    )
+
+    farm_id: int
+    policy: PolicyIn
+    scenario: Scenario | None = Field(None, description="Demo only: evaluate against a mock scenario instead of live data")
+
+
+class TriggerCheckOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "farm_id": 1,
+                "farm_name": "Kamau Maize Plot",
+                "crop": "maize",
+                "stage": "flowering",
+                "triggered": True,
+                "rule": "drought_rainfall_deficit",
+                "evidence": {
+                    "window_days": 21,
+                    "window_start": "2026-08-14",
+                    "window_end": "2026-09-03",
+                    "readings_in_window": 21,
+                    "rainfall_total_mm": 0.4,
+                    "threshold_mm": 30.0,
+                    "deficit_mm": 29.6,
+                    "dry_days": 21,
+                    "stage_is_critical": True,
+                    "stage_gate_blocked": False,
+                },
+                "confidence": 1.0,
+                "policy": {"type": "drought", "window_days": 21, "rainfall_threshold_mm": 30.0, "critical_stages_only": True},
+                "assessed_at": "2026-09-03T08:00:00Z",
+                "scenario": "dry_spell",
+                "data_sources": ["mock:dry_spell"],
+            }
+        }
+    )
+
+    farm_id: int
+    farm_name: str
+    crop: str
+    stage: str
+    triggered: bool
+    rule: str
+    evidence: dict[str, Any]
+    confidence: float = Field(..., ge=0, le=1)
+    policy: dict[str, Any]
+    assessed_at: datetime
+    scenario: str | None
+    data_sources: list[str]

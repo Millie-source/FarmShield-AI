@@ -1,0 +1,2337 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FarmShield AI",
+    "description": "\n**Hyperlocal climate risk infrastructure for smallholder farmers in Kenya.**\n\nFarmShield turns weather-station readings (JKUAT Conduit station) + crop + growth stage + location into:\n\n* a **Farm Risk Score** - drought, flood, heat-stress and crop-health sub-scores (LOW / MEDIUM / HIGH) and an overall 0-100 score, each backed by human-readable *reasons*;\n* **stage-aware advice** for the farmer in English and Kiswahili, delivered by SMS;\n* **parametric insurance trigger signals** insurers and SACCOs can act on.\n\nScoring is deterministic and rule-based (FAO-56 crop water requirements, KALRO crop guides) so every number is auditable.\nPartners authenticate with an `X-API-Key` header on the `/api/v1` routes.\n",
+    "contact": {
+      "name": "FarmShield AI - Hack the Weather 2026",
+      "url": "https://github.com/Millie-source/FarmShield-AI"
+    },
+    "license": {
+      "name": "MIT"
+    },
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/farms": {
+      "get": {
+        "tags": [
+          "farms"
+        ],
+        "summary": "List farms with their latest risk summary",
+        "operationId": "list_farms_farms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FarmOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Farms Farms Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "farms"
+        ],
+        "summary": "Register a farm",
+        "description": "Registers a farmer (matched by phone number) and a farm plot, then runs a first risk assessment immediately so the dashboard shows a score straight away.",
+        "operationId": "create_farm_farms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FarmCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FarmOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (unknown crop, bad phone, out-of-bounds location)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}": {
+      "get": {
+        "tags": [
+          "farms"
+        ],
+        "summary": "Get one farm",
+        "operationId": "get_farm_farms__farm_id__get",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FarmOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "farms"
+        ],
+        "summary": "Delete a farm",
+        "operationId": "delete_farm_farms__farm_id__delete",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/weather": {
+      "get": {
+        "tags": [
+          "farms"
+        ],
+        "summary": "Daily weather history used for scoring",
+        "description": "Readings from the active provider (JKUAT Conduit station or the mock replay). Pass `scenario` to preview a mock scenario without switching it globally.",
+        "operationId": "farm_weather_farms__farm_id__weather_get",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "description": "Number of days of history",
+              "default": 30,
+              "title": "Days"
+            },
+            "description": "Number of days of history"
+          },
+          {
+            "name": "scenario",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "normal",
+                    "dry_spell",
+                    "heavy_rain"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Force a mock scenario for this call",
+              "title": "Scenario"
+            },
+            "description": "Force a mock scenario for this call"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherHistoryOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/assess": {
+      "post": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Run the risk engine for a farm now",
+        "description": "Pulls the last 30 days of readings for the farm location, derives the growth stage, scores drought / flood / heat / crop health, evaluates the default drought insurance trigger and generates advice. The result is stored and returned.",
+        "operationId": "assess_farm_farms__farm_id__assess_post",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          },
+          {
+            "name": "scenario",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "normal",
+                    "dry_spell",
+                    "heavy_rain"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Force a mock scenario for this assessment only",
+              "title": "Scenario"
+            },
+            "description": "Force a mock scenario for this assessment only"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/risk": {
+      "get": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Latest Farm Risk Score",
+        "description": "Returns the most recent stored assessment; runs one if the farm has never been assessed.",
+        "operationId": "get_risk_farms__farm_id__risk_get",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/risk/history": {
+      "get": {
+        "tags": [
+          "risk"
+        ],
+        "summary": "Assessment history (newest first)",
+        "operationId": "risk_history_farms__farm_id__risk_history_get",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RiskHistoryItem"
+                  },
+                  "title": "Response Risk History Farms  Farm Id  Risk History Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenario": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Active mock weather scenario",
+        "operationId": "get_scenario_scenario_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Switch the mock weather scenario (live demo)",
+        "description": "Flips the replayed weather between normal / dry_spell / heavy_rain and, by default, re-assesses every farm so scores and SMS alerts change immediately.",
+        "operationId": "set_scenario_scenario_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioSwitchOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "summary": "Who am I?",
+        "description": "Echoes the authenticated partner client. Handy for verifying a key.",
+        "operationId": "me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerInfoOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ]
+      }
+    },
+    "/api/v1/farms": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "summary": "Portfolio: all registered farms with latest risk summary",
+        "operationId": "portfolio_api_v1_farms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FarmOut"
+                  },
+                  "type": "array",
+                  "title": "Response Portfolio Api V1 Farms Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ]
+      }
+    },
+    "/api/v1/risk/bulk": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "summary": "Bulk risk scores for a portfolio",
+        "description": "Comma-separated `farm_ids`. Unknown ids are reported in `errors` rather than failing the whole call.",
+        "operationId": "partner_risk_bulk_api_v1_risk_bulk_get",
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "farm_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated farm ids, e.g. `1,2,3`",
+              "examples": [
+                "1,2,3"
+              ],
+              "title": "Farm Ids"
+            },
+            "description": "Comma-separated farm ids, e.g. `1,2,3`"
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Re-run the engine for every farm",
+              "default": false,
+              "title": "Fresh"
+            },
+            "description": "Re-run the engine for every farm"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkRiskOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/risk/{farm_id}": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "summary": "Dynamic risk score for one farm",
+        "description": "Returns the latest Farm Risk Score: overall 0-100 + label, four sub-scores with reasons, growth stage, the default drought insurance trigger, advice text, timestamp and data sources. Set `fresh=true` to force a new assessment against current weather.",
+        "operationId": "partner_risk_api_v1_risk__farm_id__get",
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Re-run the engine now instead of returning the stored latest assessment",
+              "default": false,
+              "title": "Fresh"
+            },
+            "description": "Re-run the engine now instead of returning the stored latest assessment"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/insurance/check-trigger": {
+      "post": {
+        "tags": [
+          "partners"
+        ],
+        "summary": "Evaluate a parametric policy against observed weather",
+        "description": "Supply your own policy definition (drought deficit, excess rain or heat days) and FarmShield evaluates it against the farm's observed readings and growth stage, returning `triggered`, the evidence and a confidence.",
+        "operationId": "check_insurance_trigger_api_v1_insurance_check_trigger_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerCheckOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PartnerApiKey": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness check",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdviceOut": {
+        "properties": {
+          "en": {
+            "type": "string",
+            "title": "En",
+            "description": "Farmer-friendly advice in English"
+          },
+          "sw": {
+            "type": "string",
+            "title": "Sw",
+            "description": "Ushauri kwa Kiswahili"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "gemini",
+              "fallback"
+            ],
+            "title": "Source",
+            "description": "gemini when the LLM produced it, fallback for rule-based text"
+          },
+          "sms_en": {
+            "type": "string",
+            "title": "Sms En",
+            "description": "<=160 char SMS version (EN)"
+          },
+          "sms_sw": {
+            "type": "string",
+            "title": "Sms Sw",
+            "description": "<=160 char SMS version (SW)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "en",
+          "sw",
+          "source",
+          "sms_en",
+          "sms_sw"
+        ],
+        "title": "AdviceOut"
+      },
+      "ApiError": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ApiError",
+        "example": {
+          "detail": "Farm 42 not found"
+        }
+      },
+      "BulkRiskOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of farms successfully scored"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BulkSummary",
+            "description": "Portfolio roll-up"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RiskOut"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Errors",
+            "description": "Per-farm failures (unknown id etc.)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "summary",
+          "results"
+        ],
+        "title": "BulkRiskOut"
+      },
+      "BulkSummary": {
+        "properties": {
+          "high_risk": {
+            "type": "integer",
+            "title": "High Risk"
+          },
+          "medium_risk": {
+            "type": "integer",
+            "title": "Medium Risk"
+          },
+          "low_risk": {
+            "type": "integer",
+            "title": "Low Risk"
+          },
+          "insurance_triggered": {
+            "type": "integer",
+            "title": "Insurance Triggered"
+          },
+          "mean_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "high_risk",
+          "medium_risk",
+          "low_risk",
+          "insurance_triggered",
+          "mean_score"
+        ],
+        "title": "BulkSummary"
+      },
+      "FarmCreate": {
+        "properties": {
+          "farmer_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Farmer Name",
+            "description": "Farmer's full name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone",
+            "description": "Mobile number in E.164 format (+2547...). Used for SMS alerts."
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "sw"
+            ],
+            "title": "Language",
+            "description": "Preferred language for advice and SMS",
+            "default": "en"
+          },
+          "farm_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Farm Name",
+            "description": "Human-friendly farm / plot name"
+          },
+          "crop": {
+            "type": "string",
+            "title": "Crop",
+            "description": "One of: maize, beans, potatoes, tomatoes, kale"
+          },
+          "planting_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Planting Date",
+            "description": "Date the crop was planted / transplanted"
+          },
+          "lat": {
+            "type": "number",
+            "maximum": 5.5,
+            "minimum": -5.5,
+            "title": "Lat",
+            "description": "Latitude (Kenya bounds)"
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 42.5,
+            "minimum": 33.5,
+            "title": "Lon",
+            "description": "Longitude (Kenya bounds)"
+          },
+          "area_ha": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Ha",
+            "description": "Plot size in hectares (optional)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farmer_name",
+          "phone",
+          "farm_name",
+          "crop",
+          "planting_date",
+          "lat",
+          "lon"
+        ],
+        "title": "FarmCreate",
+        "example": {
+          "area_ha": 0.8,
+          "crop": "maize",
+          "farm_name": "Kamau Maize Plot",
+          "farmer_name": "Wanjiku Kamau",
+          "language": "sw",
+          "lat": -1.098,
+          "lon": 37.012,
+          "phone": "+254711000001",
+          "planting_date": "2026-07-03"
+        }
+      },
+      "FarmOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "farm_name": {
+            "type": "string",
+            "title": "Farm Name"
+          },
+          "farmer_name": {
+            "type": "string",
+            "title": "Farmer Name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "crop": {
+            "type": "string",
+            "title": "Crop"
+          },
+          "crop_display": {
+            "type": "string",
+            "title": "Crop Display"
+          },
+          "planting_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Planting Date"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "area_ha": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Ha"
+          },
+          "county": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "County"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "Current growth stage derived from planting date"
+          },
+          "days_after_planting": {
+            "type": "integer",
+            "title": "Days After Planting"
+          },
+          "latest_risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "farm_name",
+          "farmer_name",
+          "phone",
+          "language",
+          "crop",
+          "crop_display",
+          "planting_date",
+          "lat",
+          "lon",
+          "area_ha",
+          "county",
+          "stage",
+          "days_after_planting"
+        ],
+        "title": "FarmOut",
+        "example": {
+          "area_ha": 0.8,
+          "county": "Kiambu",
+          "crop": "maize",
+          "crop_display": "Maize",
+          "days_after_planting": 62,
+          "farm_name": "Kamau Maize Plot",
+          "farmer_name": "Wanjiku Kamau",
+          "id": 1,
+          "language": "sw",
+          "lat": -1.098,
+          "latest_risk": {
+            "assessed_at": "2026-09-03T08:00:00Z",
+            "assessment_id": 12,
+            "farm_id": 1,
+            "insurance_triggered": true,
+            "overall_label": "HIGH CLIMATE RISK",
+            "overall_level": "HIGH",
+            "overall_score": 72,
+            "scenario": "dry_spell",
+            "stage": "flowering"
+          },
+          "lon": 37.012,
+          "phone": "+254711000001",
+          "planting_date": "2026-07-03",
+          "stage": "flowering"
+        }
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InsuranceTriggerOut": {
+        "properties": {
+          "triggered": {
+            "type": "boolean",
+            "title": "Triggered"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "description": "Rule id: drought_rainfall_deficit | excess_rainfall | heat_days"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence",
+            "description": "Observed values behind the decision, for audit"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "description": "Data completeness x margin from threshold"
+          },
+          "policy": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Policy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "triggered",
+          "rule",
+          "evidence",
+          "confidence",
+          "policy"
+        ],
+        "title": "InsuranceTriggerOut",
+        "example": {
+          "confidence": 1.0,
+          "evidence": {
+            "deficit_mm": 29.6,
+            "dry_days": 21,
+            "rainfall_total_mm": 0.4,
+            "stage": "flowering",
+            "stage_is_critical": true,
+            "threshold_mm": 30,
+            "window_days": 21
+          },
+          "policy": {
+            "critical_stages_only": false,
+            "rainfall_threshold_mm": 30,
+            "type": "drought",
+            "window_days": 21
+          },
+          "rule": "drought_rainfall_deficit",
+          "triggered": true
+        }
+      },
+      "OverallOut": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Level"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"LOW CLIMATE RISK\" | \"MODERATE CLIMATE RISK\" | \"HIGH CLIMATE RISK\""
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Weights",
+            "description": "Stage-dependent weights applied to the sub-scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "level",
+          "label",
+          "weights"
+        ],
+        "title": "OverallOut"
+      },
+      "PartnerInfoOut": {
+        "properties": {
+          "client": {
+            "type": "string",
+            "title": "Client"
+          },
+          "organisation_type": {
+            "type": "string",
+            "title": "Organisation Type"
+          },
+          "request_count": {
+            "type": "integer",
+            "title": "Request Count"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client",
+          "organisation_type",
+          "request_count",
+          "last_used_at"
+        ],
+        "title": "PartnerInfoOut",
+        "example": {
+          "client": "acme-insurance",
+          "last_used_at": "2026-09-03T08:00:00Z",
+          "organisation_type": "insurer",
+          "request_count": 42
+        }
+      },
+      "PolicyIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "drought",
+              "excess_rain",
+              "heat"
+            ],
+            "title": "Type",
+            "description": "Trigger family"
+          },
+          "window_days": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Window Days",
+            "description": "Observation window ending today"
+          },
+          "rainfall_threshold_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rainfall Threshold Mm",
+            "description": "drought: pay if cumulative rain is below this; excess_rain: pay if any window exceeds it"
+          },
+          "temp_threshold_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temp Threshold C",
+            "description": "heat: a day counts as hot above this max temperature"
+          },
+          "hot_days_threshold": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hot Days Threshold",
+            "description": "heat: number of hot days in the window that triggers"
+          },
+          "critical_stages_only": {
+            "type": "boolean",
+            "title": "Critical Stages Only",
+            "description": "Only pay out if the crop is in a yield-critical stage",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "window_days"
+        ],
+        "title": "PolicyIn",
+        "example": {
+          "rainfall_threshold_mm": 30,
+          "type": "drought",
+          "window_days": 21
+        }
+      },
+      "RiskHistoryItem": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "assessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assessed At"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "overall_level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Overall Level"
+          },
+          "drought": {
+            "type": "integer",
+            "title": "Drought"
+          },
+          "flood": {
+            "type": "integer",
+            "title": "Flood"
+          },
+          "heat": {
+            "type": "integer",
+            "title": "Heat"
+          },
+          "crop_health": {
+            "type": "integer",
+            "title": "Crop Health"
+          },
+          "insurance_triggered": {
+            "type": "boolean",
+            "title": "Insurance Triggered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "assessed_at",
+          "scenario",
+          "stage",
+          "overall_score",
+          "overall_level",
+          "drought",
+          "flood",
+          "heat",
+          "crop_health",
+          "insurance_triggered"
+        ],
+        "title": "RiskHistoryItem"
+      },
+      "RiskOut": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "farm_name": {
+            "type": "string",
+            "title": "Farm Name"
+          },
+          "crop": {
+            "type": "string",
+            "title": "Crop"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/StageOut"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/OverallOut"
+          },
+          "sub_scores": {
+            "$ref": "#/components/schemas/SubScoresOut"
+          },
+          "insurance_trigger": {
+            "$ref": "#/components/schemas/InsuranceTriggerOut"
+          },
+          "advice": {
+            "$ref": "#/components/schemas/AdviceOut"
+          },
+          "assessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assessed At"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario",
+            "description": "Mock scenario the readings came from (null for live data)"
+          },
+          "data_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Sources"
+          },
+          "readings_used": {
+            "type": "integer",
+            "title": "Readings Used"
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "ndvi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ndvi",
+            "description": "Satellite NDVI if a provider supplied one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "farm_id",
+          "farm_name",
+          "crop",
+          "stage",
+          "overall",
+          "sub_scores",
+          "insurance_trigger",
+          "advice",
+          "assessed_at",
+          "data_sources",
+          "readings_used",
+          "window_days"
+        ],
+        "title": "RiskOut",
+        "description": "Full Farm Risk Score: the core product of FarmShield.",
+        "example": {
+          "advice": {
+            "en": "Your maize is flowering and has had almost no rain for 3 weeks. Irrigate within 24-48 hours if you can. Do not apply fertiliser until rain returns.",
+            "sms_en": "FarmShield: Kamau Maize Plot risk HIGH (72/100). Maize flowering, no rain 3 wks. Irrigate in 24-48h. Hold fertiliser.",
+            "sms_sw": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi yanatoa maua, hakuna mvua wiki 3. Mwagilia ndani ya saa 24-48.",
+            "source": "fallback",
+            "sw": "Mahindi yako yanatoa maua na hayajapata mvua kwa wiki 3. Mwagilia ndani ya saa 24-48 ukiweza. Usiweke mbolea hadi mvua irudi."
+          },
+          "assessed_at": "2026-09-03T08:00:00Z",
+          "assessment_id": 12,
+          "crop": "maize",
+          "data_sources": [
+            "mock:dry_spell"
+          ],
+          "farm_id": 1,
+          "farm_name": "Kamau Maize Plot",
+          "insurance_trigger": {
+            "confidence": 1.0,
+            "evidence": {
+              "rainfall_total_mm": 0.4,
+              "threshold_mm": 30,
+              "window_days": 21
+            },
+            "policy": {
+              "rainfall_threshold_mm": 30,
+              "type": "drought",
+              "window_days": 21
+            },
+            "rule": "drought_rainfall_deficit",
+            "triggered": true
+          },
+          "overall": {
+            "label": "HIGH CLIMATE RISK",
+            "level": "HIGH",
+            "score": 72,
+            "weights": {
+              "crop_health": 0.2,
+              "drought": 0.4,
+              "flood": 0.1,
+              "heat": 0.3
+            }
+          },
+          "readings_used": 30,
+          "scenario": "dry_spell",
+          "stage": {
+            "day_after_planting": 62,
+            "day_in_stage": 12,
+            "is_critical": true,
+            "name": "flowering",
+            "progress": 0.496,
+            "sensitivity": 1.0,
+            "stage_length_days": 25,
+            "water_need_mm_week": 37.8
+          },
+          "sub_scores": {
+            "crop_health": {
+              "label": "POOR",
+              "level": "HIGH",
+              "reasons": [
+                "No satellite data: health inferred from weather stress over 30 days"
+              ],
+              "score": 61
+            },
+            "drought": {
+              "level": "HIGH",
+              "reasons": [
+                "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering"
+              ],
+              "score": 81
+            },
+            "flood": {
+              "level": "LOW",
+              "reasons": [
+                "0 mm in the last 72 h, below the 90 mm flood threshold"
+              ],
+              "score": 0
+            },
+            "heat": {
+              "level": "HIGH",
+              "reasons": [
+                "6 of the last 7 days exceeded 32°C (peak 33.9°C) during flowering"
+              ],
+              "score": 68
+            }
+          },
+          "window_days": 30
+        }
+      },
+      "RiskSummary": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "assessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assessed At"
+          },
+          "overall_score": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Overall Score"
+          },
+          "overall_level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Overall Level"
+          },
+          "overall_label": {
+            "type": "string",
+            "title": "Overall Label",
+            "description": "e.g. \"HIGH CLIMATE RISK\""
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "insurance_triggered": {
+            "type": "boolean",
+            "title": "Insurance Triggered"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "farm_id",
+          "assessed_at",
+          "overall_score",
+          "overall_level",
+          "overall_label",
+          "stage",
+          "insurance_triggered"
+        ],
+        "title": "RiskSummary",
+        "description": "Compact latest-risk view embedded in farm listings."
+      },
+      "ScenarioOut": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "dry_spell",
+              "heavy_rain"
+            ],
+            "title": "Scenario",
+            "description": "Active mock weather scenario"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "Active weather provider (mock | conduit)"
+          },
+          "available": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario",
+          "provider",
+          "available"
+        ],
+        "title": "ScenarioOut"
+      },
+      "ScenarioSwitchOut": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "dry_spell",
+              "heavy_rain"
+            ],
+            "title": "Scenario"
+          },
+          "reassessed": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RiskSummary"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Reassessed",
+            "description": "New summaries per farm (if reassess=true)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario"
+        ],
+        "title": "ScenarioSwitchOut"
+      },
+      "ScenarioUpdate": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "dry_spell",
+              "heavy_rain"
+            ],
+            "title": "Scenario"
+          },
+          "reassess": {
+            "type": "boolean",
+            "title": "Reassess",
+            "description": "Re-run the risk engine for every farm after switching",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario"
+        ],
+        "title": "ScenarioUpdate",
+        "example": {
+          "reassess": true,
+          "scenario": "dry_spell"
+        }
+      },
+      "StageOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Growth stage, e.g. flowering"
+          },
+          "day_after_planting": {
+            "type": "integer",
+            "title": "Day After Planting"
+          },
+          "day_in_stage": {
+            "type": "integer",
+            "title": "Day In Stage"
+          },
+          "stage_length_days": {
+            "type": "integer",
+            "title": "Stage Length Days"
+          },
+          "progress": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Progress",
+            "description": "0-1 progress through the season"
+          },
+          "water_need_mm_week": {
+            "type": "number",
+            "title": "Water Need Mm Week",
+            "description": "FAO-56 crop water requirement for this stage"
+          },
+          "sensitivity": {
+            "type": "number",
+            "title": "Sensitivity",
+            "description": "0-1 yield sensitivity to stress in this stage"
+          },
+          "is_critical": {
+            "type": "boolean",
+            "title": "Is Critical"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "day_after_planting",
+          "day_in_stage",
+          "stage_length_days",
+          "progress",
+          "water_need_mm_week",
+          "sensitivity",
+          "is_critical"
+        ],
+        "title": "StageOut"
+      },
+      "SubScoreOut": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "0 = no risk, 100 = extreme"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Level"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "description": "Human-readable evidence behind the score"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "GOOD",
+                  "FAIR",
+                  "POOR"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Crop health only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "level",
+          "reasons"
+        ],
+        "title": "SubScoreOut",
+        "example": {
+          "level": "HIGH",
+          "reasons": [
+            "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering",
+            "Soil moisture 12% is below the 18% wilting point",
+            "22 consecutive dry days (<1 mm)"
+          ],
+          "score": 81
+        }
+      },
+      "SubScoresOut": {
+        "properties": {
+          "drought": {
+            "$ref": "#/components/schemas/SubScoreOut"
+          },
+          "flood": {
+            "$ref": "#/components/schemas/SubScoreOut"
+          },
+          "heat": {
+            "$ref": "#/components/schemas/SubScoreOut"
+          },
+          "crop_health": {
+            "$ref": "#/components/schemas/SubScoreOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "drought",
+          "flood",
+          "heat",
+          "crop_health"
+        ],
+        "title": "SubScoresOut"
+      },
+      "TriggerCheckIn": {
+        "properties": {
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyIn"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "dry_spell",
+                  "heavy_rain"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario",
+            "description": "Demo only: evaluate against a mock scenario instead of live data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farm_id",
+          "policy"
+        ],
+        "title": "TriggerCheckIn",
+        "example": {
+          "farm_id": 1,
+          "policy": {
+            "critical_stages_only": true,
+            "rainfall_threshold_mm": 30,
+            "type": "drought",
+            "window_days": 21
+          }
+        }
+      },
+      "TriggerCheckOut": {
+        "properties": {
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "farm_name": {
+            "type": "string",
+            "title": "Farm Name"
+          },
+          "crop": {
+            "type": "string",
+            "title": "Crop"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "triggered": {
+            "type": "boolean",
+            "title": "Triggered"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Evidence"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "policy": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Policy"
+          },
+          "assessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assessed At"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "data_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farm_id",
+          "farm_name",
+          "crop",
+          "stage",
+          "triggered",
+          "rule",
+          "evidence",
+          "confidence",
+          "policy",
+          "assessed_at",
+          "scenario",
+          "data_sources"
+        ],
+        "title": "TriggerCheckOut",
+        "example": {
+          "assessed_at": "2026-09-03T08:00:00Z",
+          "confidence": 1.0,
+          "crop": "maize",
+          "data_sources": [
+            "mock:dry_spell"
+          ],
+          "evidence": {
+            "deficit_mm": 29.6,
+            "dry_days": 21,
+            "rainfall_total_mm": 0.4,
+            "readings_in_window": 21,
+            "stage_gate_blocked": false,
+            "stage_is_critical": true,
+            "threshold_mm": 30.0,
+            "window_days": 21,
+            "window_end": "2026-09-03",
+            "window_start": "2026-08-14"
+          },
+          "farm_id": 1,
+          "farm_name": "Kamau Maize Plot",
+          "policy": {
+            "critical_stages_only": true,
+            "rainfall_threshold_mm": 30.0,
+            "type": "drought",
+            "window_days": 21
+          },
+          "rule": "drought_rainfall_deficit",
+          "scenario": "dry_spell",
+          "stage": "flowering",
+          "triggered": true
+        }
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeatherHistoryOut": {
+        "properties": {
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Data source id, e.g. mock:dry_spell or conduit:jkuat"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherReadingOut"
+            },
+            "type": "array",
+            "title": "Readings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farm_id",
+          "source",
+          "days",
+          "readings"
+        ],
+        "title": "WeatherHistoryOut"
+      },
+      "WeatherReadingOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "rainfall_mm": {
+            "type": "number",
+            "title": "Rainfall Mm"
+          },
+          "temp_max_c": {
+            "type": "number",
+            "title": "Temp Max C"
+          },
+          "temp_min_c": {
+            "type": "number",
+            "title": "Temp Min C"
+          },
+          "humidity_pct": {
+            "type": "number",
+            "title": "Humidity Pct"
+          },
+          "soil_moisture_pct": {
+            "type": "number",
+            "title": "Soil Moisture Pct"
+          },
+          "solar_radiation_wm2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solar Radiation Wm2"
+          },
+          "wind_speed_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Speed Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "rainfall_mm",
+          "temp_max_c",
+          "temp_min_c",
+          "humidity_pct",
+          "soil_moisture_pct"
+        ],
+        "title": "WeatherReadingOut",
+        "example": {
+          "date": "2026-09-03",
+          "humidity_pct": 38,
+          "rainfall_mm": 0.0,
+          "soil_moisture_pct": 12.0,
+          "solar_radiation_wm2": 288,
+          "temp_max_c": 33.7,
+          "temp_min_c": 15.2,
+          "wind_speed_ms": 3.1
+        }
+      }
+    },
+    "securitySchemes": {
+      "PartnerApiKey": {
+        "type": "apiKey",
+        "description": "Partner API key issued to insurers, banks, SACCOs and agribusinesses. Demo keys: `fs_demo_acme_insurance_2026` (acme-insurance), `fs_demo_harvest_sacco_2026` (harvest-sacco).",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "farms",
+      "description": "Register and manage farmer plots."
+    },
+    {
+      "name": "risk",
+      "description": "The Farm Risk Score: explainable drought / flood / heat / crop-health scoring with reasons, insurance trigger and advice."
+    },
+    {
+      "name": "alerts",
+      "description": "SMS alerts to farmers (Africa's Talking sandbox or console)."
+    },
+    {
+      "name": "partners",
+      "description": "API-key protected endpoints for insurers, banks, SACCOs and agribusinesses. Send `X-API-Key`."
+    },
+    {
+      "name": "demo",
+      "description": "Live-demo controls: switch the replayed weather scenario."
+    },
+    {
+      "name": "system",
+      "description": "Health and metadata."
+    }
+  ]
+}

@@ -14,7 +14,7 @@ from app.engine.sample_data import SCENARIOS
 from app.providers.weather import get_weather_provider, scenario_state
 from app.routers.farms import get_farm_or_404
 from app.schemas import ApiError, RiskHistoryItem, RiskOut, Scenario, ScenarioOut, ScenarioSwitchOut, ScenarioUpdate
-from app.services.assessment import get_or_create_latest, risk_payload, risk_summary, run_assessment
+from app.services.assessment import as_utc, get_or_create_latest, risk_payload, risk_summary, run_assessment
 
 log = logging.getLogger("farmshield.risk")
 router = APIRouter(tags=["risk"])
@@ -39,7 +39,7 @@ def assess_farm(
     try:
         row = run_assessment(db, farm, scenario)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(422, detail=str(exc)) from exc
     return risk_payload(row)
 
 
@@ -74,7 +74,7 @@ def risk_history(
     return [
         {
             "assessment_id": r.id,
-            "assessed_at": r.assessed_at,
+            "assessed_at": as_utc(r.assessed_at),
             "scenario": r.scenario,
             "stage": r.stage_name,
             "overall_score": r.overall_score,
