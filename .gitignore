@@ -9,6 +9,8 @@ htmlcov/
 .coverage
 backend/*.db
 backend/*.db-journal
+backend/tests/*.db
+backend/tests/*.db-journal
 
 # Node
 node_modules/

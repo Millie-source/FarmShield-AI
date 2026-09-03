@@ -19,21 +19,21 @@ The FastAPI service that ingests weather data, persists farms and assessments, w
 
 ## Deliverables
 
-- [ ] `models.py` - `Farmer`, `Farm`, `WeatherReading`, `RiskAssessment`, `Alert`, `ApiClient`
-- [ ] `seed.py` - 3 farms (maize/flowering, beans/vegetative, kale/just planted; lat -1.10, lon 37.01 area) + clients `acme-insurance`, `harvest-sacco`
-- [ ] `providers/weather/base.py` - `get_latest(lat, lon)`, `get_history(lat, lon, days)`
-- [ ] `providers/weather/mock.py` - replays `data/sample_readings.json`, `scenario` switch (`normal` / `dry_spell` / `heavy_rain`) settable via `?scenario=` and a global `PUT /scenario`
-- [ ] `providers/weather/conduit.py` - JKUAT Conduit adapter (payload shape TBC), timeout + fallback to mock on failure
-- [ ] `providers/satellite/base.py` - stub returning `None` / mock NDVI
-- [ ] Farmer routes: `POST /farms`, `GET /farms`, `GET /farms/{id}`, `POST /farms/{id}/assess`, `GET /farms/{id}/risk`, `GET /farms/{id}/risk/history`, `GET /farms/{id}/weather?days=30`
-- [ ] Partner routes under `/api/v1` with `X-API-Key`: `GET /risk/{farm_id}`, `GET /risk/bulk?farm_ids=`, `POST /insurance/check-trigger`
-- [ ] `engine/advisor.py` - Gemini `gemini-3.1-flash-lite` (never `gemini-flash-latest`) -> advice EN + SW from the structured assessment; rule-based fallback text when key missing / call fails
-- [ ] `services/sms.py` - `SmsSender` interface, `AfricasTalkingSandboxSender`, `ConsoleSender`; messages under 160 chars where possible
-- [ ] `services/alerts.py` - decides when a score change warrants SMS; dedupes (no repeat within N hours unless level changes)
-- [ ] Alert routes: `POST /farms/{id}/alerts/preview`, `POST /farms/{id}/alerts/send`, `GET /farms/{id}/alerts`
-- [ ] OpenAPI: description + example on every schema and route; `docs/openapi.json` frozen via `make openapi`
-- [ ] `.env.example`, CORS for `:5173`, `make dev` / `dev.ps1 dev`
-- [ ] README curl walkthrough
+- [x] `models.py` - `Farmer`, `Farm`, `WeatherReading`, `RiskAssessment`, `Alert`, `ApiClient`
+- [x] `seed.py` - 3 farms (maize/flowering, beans/vegetative, kale/just planted; lat -1.10, lon 37.01 area) + clients `acme-insurance`, `harvest-sacco`
+- [x] `providers/weather/base.py` - `get_latest(lat, lon)`, `get_history(lat, lon, days)`
+- [x] `providers/weather/mock.py` - replays `data/sample_readings.json`, `scenario` switch (`normal` / `dry_spell` / `heavy_rain`) settable via `?scenario=` and a global `PUT /scenario`
+- [x] `providers/weather/conduit.py` - JKUAT Conduit adapter (payload shape **still TBC** - field aliases in `FIELD_ALIASES`), timeout + fallback to mock on failure
+- [x] `providers/satellite/base.py` - stub returning `None` / mock NDVI
+- [x] Farmer routes: `POST /farms`, `GET /farms`, `GET /farms/{id}`, `POST /farms/{id}/assess`, `GET /farms/{id}/risk`, `GET /farms/{id}/risk/history`, `GET /farms/{id}/weather?days=30`
+- [x] Partner routes under `/api/v1` with `X-API-Key`: `GET /risk/{farm_id}`, `GET /risk/bulk?farm_ids=`, `POST /insurance/check-trigger`
+- [x] `engine/advisor.py` - Gemini `gemini-3.1-flash-lite` (never `gemini-flash-latest`) -> advice EN + SW from the structured assessment; rule-based fallback text when key missing / call fails
+- [x] `services/sms.py` - `SmsSender` interface, `AfricasTalkingSandboxSender`, `ConsoleSender`; messages under 160 chars where possible
+- [x] `services/alerts.py` - decides when a score change warrants SMS; dedupes (no repeat within N hours unless level changes)
+- [x] Alert routes: `POST /farms/{id}/alerts/preview`, `POST /farms/{id}/alerts/send`, `GET /farms/{id}/alerts`
+- [x] OpenAPI: description + example on every schema and route; `docs/openapi.json` frozen via `make openapi`
+- [x] `.env.example`, CORS for `:5173`, `make dev` / `dev.ps1 dev`
+- [x] README curl walkthrough
 
 ## Contract
 
@@ -58,12 +58,12 @@ The FastAPI service that ingests weather data, persists farms and assessments, w
 
 ## Acceptance criteria
 
-- [ ] README curl walkthrough works end-to-end against the mock provider
-- [ ] switching scenario (`?scenario=dry_spell` or `PUT /scenario`) changes scores on re-assess
-- [ ] partner key gives 200; missing or invalid key gives 401 with a clear JSON error
-- [ ] Gemini or Africa's Talking down: advice falls back / SMS logs to console, HTTP still 200 with `source: "fallback"`
-- [ ] `/docs` reads well: every schema has descriptions and examples
-- [ ] `docs/openapi.json` committed
+- [x] README curl walkthrough works end-to-end against the mock provider
+- [x] switching scenario (`?scenario=dry_spell` or `PUT /scenario`) changes scores on re-assess
+- [x] partner key gives 200; missing or invalid key gives 401 with a clear JSON error
+- [x] Gemini or Africa's Talking down: advice falls back / SMS logs to console, HTTP still 200 with `source: "fallback"`
+- [x] `/docs` reads well: every schema has descriptions and examples
+- [x] `docs/openapi.json` committed
 
 ## Suggested order
 
