@@ -12,11 +12,12 @@ from app.config import get_settings
 from app.engine.types import Reading
 
 from .base import STATION, WeatherProvider, coverage
+from .conduit_api import ConduitApiClient, ConduitApiProvider, ConduitError
 from .conduit_csv import ConduitCsvProvider
 from .scenario import MockWeatherProvider, ScenarioWeatherProvider, scenario_state
 
 __all__ = [
-    "STATION", "WeatherProvider", "ScenarioWeatherProvider", "MockWeatherProvider", "ConduitCsvProvider",
+    "STATION", "ConduitApiProvider", "ConduitApiClient", "ConduitError", "WeatherProvider", "ScenarioWeatherProvider", "MockWeatherProvider", "ConduitCsvProvider",
     "scenario_state", "get_weather_provider", "describe", "coverage", "reset_provider_cache", "backend_path",
 ]
 
@@ -41,8 +42,6 @@ def _default_provider() -> WeatherProvider:
     if kind in ("scenario", "mock"):
         return ScenarioWeatherProvider()
     if kind in ("conduit_api", "conduit"):
-        from .conduit_api import ConduitApiProvider  # lazy: only when selected
-
         return ConduitApiProvider.from_settings(s, fallback=_csv_provider())
     return _csv_provider()
 

@@ -24,6 +24,14 @@ from .scenario import ScenarioWeatherProvider
 log = logging.getLogger("farmshield.conduit_csv")
 
 
+def pad_history(real: list[Reading], days: int, end: date, pad: WeatherProvider) -> list[Reading]:
+    """Fill the *earlier* part of a ``days``-long window ending on ``end`` with synthetic readings."""
+    if len(real) >= days:
+        return real[-days:]
+    pad_end = (real[0].date - timedelta(days=1)) if real else end
+    return pad.get_history(0.0, 0.0, days=days - len(real), end=pad_end) + real
+
+
 class ConduitCsvProvider(WeatherProvider):
     name = "conduit_csv"
 
@@ -76,12 +84,7 @@ class ConduitCsvProvider(WeatherProvider):
         end = end or date.today()
         real = [r for r in self.all_readings() if r.date <= end][-days:]
         self._last_real = len(real)
-        if len(real) >= days:
-            return real
-        # pad the earlier part of the window with the synthetic 'normal' scenario
-        pad_end = (real[0].date - timedelta(days=1)) if real else end
-        pad = self.pad.get_history(lat, lon, days=days - len(real), end=pad_end)
-        return pad + real
+        return pad_history(real, days, end, self.pad)  # earlier part of the window <- synthetic 'normal'
 
     def source_id(self) -> str:
         if self._last_real == 0 and not self.available:

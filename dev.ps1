@@ -1,5 +1,5 @@
 # FarmShield AI - PowerShell equivalent of the Makefile for Windows machines without GNU make.
-# Usage: .\dev.ps1 setup | dev | api | web | test | seed | openapi
+# Usage: .\dev.ps1 setup | dev | api | web | test | seed | openapi | probe | backfill
 param([Parameter(Position = 0)][string]$Target = "dev")
 
 $Root = $PSScriptRoot
@@ -22,6 +22,8 @@ function Dev {
 function Test { Push-Location "$Root\backend"; & $Py -m pytest -q; Pop-Location }
 function Seed { Push-Location "$Root\backend"; & $Py -m app.seed; Pop-Location }
 function OpenApi { Push-Location "$Root\backend"; & $Py -m app.export_openapi; Pop-Location }
+function Probe { Push-Location "$Root\backend"; & $Py scripts\conduit_probe.py; Pop-Location }
+function Backfill { Push-Location "$Root\backend"; & $Py scripts\conduit_backfill.py --from 2026-06-01 --to (Get-Date -Format "yyyy-MM-dd"); Pop-Location }
 
 switch ($Target) {
     "setup"   { Setup }
@@ -31,5 +33,7 @@ switch ($Target) {
     "test"    { Test }
     "seed"    { Seed }
     "openapi" { OpenApi }
-    default   { Write-Host "Unknown target '$Target'. Use: setup | dev | api | web | test | seed | openapi" }
+    "probe"   { Probe }
+    "backfill" { Backfill }
+    default   { Write-Host "Unknown target '$Target'. Use: setup | dev | api | web | test | seed | openapi | probe | backfill" }
 }

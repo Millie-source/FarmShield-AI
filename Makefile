@@ -8,7 +8,7 @@ else
   VPY = $(VENV)/bin/python
 endif
 
-.PHONY: setup dev api web test seed openapi clean
+.PHONY: setup dev api web test seed openapi probe backfill clean
 
 setup: ## install backend + frontend deps
 	$(PY) -m venv $(VENV)
@@ -32,6 +32,14 @@ seed: ## (re)seed demo farms + partner API clients
 
 openapi: ## freeze OpenAPI spec to docs/openapi.json
 	cd backend && ../$(VPY) -m app.export_openapi
+
+probe: ## call the Conduit API for 1 day and print its shape (needs CONDUIT_API_KEY + CONDUIT_EMAIL in backend/.env)
+	cd backend && ../$(VPY) scripts/conduit_probe.py
+
+FROM ?= 2026-06-01
+TO ?= $(shell date +%Y-%m-%d)
+backfill: ## pull Conduit history in 7-day chunks into the cache and rebuild data/conduit_daily.csv
+	cd backend && ../$(VPY) scripts/conduit_backfill.py --from $(FROM) --to $(TO)
 
 clean:
 	rm -rf $(VENV) backend/farmshield.db frontend/node_modules
