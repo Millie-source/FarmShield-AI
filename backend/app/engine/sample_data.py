@@ -1,4 +1,7 @@
-"""Loader for the bundled 30-day Juja sample readings (three scenarios).
+"""Loader for the bundled 30-day Juja SYNTHETIC scenarios (normal / dry_spell / heavy_rain).
+
+These exist for the live "flip the weather" demo and for tests; real station data comes
+from the Conduit providers.  Every Reading is flagged ``synthetic=True``.
 
 Used by the engine tests, the validation notebook and the backend MockProvider.
 Stdlib only.
@@ -41,9 +44,12 @@ def load_sample_readings(
                 temp_max_c=float(row["temp_max_c"]),
                 temp_min_c=float(row["temp_min_c"]),
                 humidity_pct=float(row["humidity_pct"]),
-                soil_moisture_pct=float(row["soil_moisture_pct"]),
-                solar_radiation_wm2=row.get("solar_radiation_wm2"),
                 wind_speed_ms=row.get("wind_speed_ms"),
+                wind_gust_ms=row.get("wind_gust_ms"),
+                heat_index_max_c=row.get("heat_index_max_c"),
+                wbgt_max_c=row.get("wbgt_max_c"),
+                light_index=row.get("light_index"),
+                synthetic=True,
             )
         )
     out.sort(key=lambda r: r.date)

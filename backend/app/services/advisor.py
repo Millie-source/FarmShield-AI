@@ -59,7 +59,7 @@ def _facts(readings: list[Reading], a: RiskAssessment) -> dict:
         "need": round(a.stage.water_need_mm_week),
         "tmax": round(max(r.temp_max_c for r in last7), 1),
         "thr": round(a.stage.max_temp_c),
-        "soil": round(ordered[-1].soil_moisture_pct),
+        "soil": round(a.soil_moisture_pct) if a.soil_moisture_pct is not None else None,
     }
 
 

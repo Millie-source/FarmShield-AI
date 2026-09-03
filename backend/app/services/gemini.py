@@ -53,8 +53,10 @@ def _prompt(a: RiskAssessment, trigger: TriggerResult, farm_name: str, readings:
         "overall": {"score": a.overall.score, "level": a.overall.level},
         "sub_scores": {k: {"score": v.score, "level": v.level, "reasons": v.reasons} for k, v in a.sub_scores.items()},
         "insurance_trigger": {"triggered": trigger.triggered, "rule": trigger.rule, "evidence": trigger.evidence},
+        "soil_moisture_pct": a.soil_moisture_pct,
+        "soil_moisture_source": a.soil_moisture_source,
         "last_7_days": [
-            {"date": r.date.isoformat(), "rain_mm": r.rainfall_mm, "tmax_c": r.temp_max_c, "soil_pct": r.soil_moisture_pct} for r in recent
+            {"date": r.date.isoformat(), "rain_mm": r.rainfall_mm, "tmax_c": r.temp_max_c, "wbgt_c": r.wbgt_max_c, "heat_index_c": r.heat_index_max_c} for r in recent
         ],
         "reference_advice_en": fallback.en,
     }

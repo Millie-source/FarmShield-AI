@@ -1,5 +1,6 @@
 """Generate backend/app/data/sample_readings.json - 30 days of realistic Juja readings
-for three scenarios: normal, dry_spell, heavy_rain.
+for three SYNTHETIC scenarios: normal, dry_spell, heavy_rain (live "flip the weather" demo only;
+real data comes from the Conduit CSV / API providers).
 
 Climatology (Juja / JKUAT, 1,500 m, early September = end of the cool dry season):
   Tmax 25-29 C, Tmin 12-16 C, RH 55-70 %, occasional light showers, ETo ~4.5 mm/day.
@@ -8,6 +9,7 @@ Deterministic (seeded) so tests are reproducible.  Re-run:  python notebooks/gen
 from __future__ import annotations
 
 import json
+import math
 import random
 from datetime import date, timedelta
 from pathlib import Path
@@ -21,17 +23,34 @@ def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def soil_walk(prev: float, rain: float, tmax: float, floor: float = 12.0, cap: float = 48.0) -> float:
-    """Simple bucket model: rain recharges, hot days dry the top soil."""
-    et_loss = 0.5 + max(0.0, tmax - 27) * 0.15  # evaporation, stronger on hot days
-    drainage = max(0.0, prev - 20.0) * 0.03  # slow drainage above ~20 % VWC
-    recharge = rain * 0.7
-    return round(clamp(prev + recharge - et_loss - drainage, floor, cap), 1)
+def vapour_pressure_hpa(t_c: float, rh: float) -> float:
+    return rh / 100 * 6.105 * math.exp(17.27 * t_c / (237.7 + t_c))
+
+
+def heat_index_c(t_c: float, rh: float) -> float:
+    """NOAA / Rothfusz heat index (valid above ~27 C); below that HI ~ T."""
+    if t_c < 27:
+        return round(t_c, 1)
+    tf = t_c * 9 / 5 + 32
+    hi = (-42.379 + 2.04901523 * tf + 10.14333127 * rh - 0.22475541 * tf * rh - 6.83783e-3 * tf**2
+          - 5.481717e-2 * rh**2 + 1.22874e-3 * tf**2 * rh + 8.5282e-4 * tf * rh**2 - 1.99e-6 * tf**2 * rh**2)
+    return round((hi - 32) * 5 / 9, 1)
+
+
+def wet_bulb_c(t_c: float, rh: float) -> float:
+    """Natural wet-bulb temperature, Stull (2011) empirical fit."""
+    return (t_c * math.atan(0.151977 * math.sqrt(rh + 8.313659)) + math.atan(t_c + rh) - math.atan(rh - 1.676331)
+            + 0.00391838 * rh**1.5 * math.atan(0.023101 * rh) - 4.686035)
+
+
+def wbgt_c(t_c: float, rh: float, light: float) -> float:
+    """Outdoor WBGT = 0.7 Tw + 0.2 Tg + 0.1 Ta with the black-globe excess scaled by the light index."""
+    tg = t_c + 6.0 * light
+    return round(0.7 * wet_bulb_c(t_c, rh) + 0.2 * tg + 0.1 * t_c, 1)
 
 
 def build(scenario: str, rng: random.Random) -> list[dict]:
     rows: list[dict] = []
-    soil = 30.0
     for i in range(DAYS):
         offset = i - (DAYS - 1)  # -29 .. 0
         d = BASE_DATE + timedelta(days=offset)
@@ -70,7 +89,8 @@ def build(scenario: str, rng: random.Random) -> list[dict]:
         else:
             raise ValueError(scenario)
 
-        soil = soil_walk(soil, rain, tmax)
+        wind = round(rng.uniform(1.5, 4.5), 1)
+        light = round(clamp(solar / 300.0, 0, 1), 2)
         rows.append(
             {
                 "day_offset": offset,
@@ -79,9 +99,13 @@ def build(scenario: str, rng: random.Random) -> list[dict]:
                 "temp_max_c": tmax,
                 "temp_min_c": tmin,
                 "humidity_pct": rh,
-                "soil_moisture_pct": soil,
-                "solar_radiation_wm2": solar,
-                "wind_speed_ms": round(rng.uniform(1.5, 4.5), 1),
+                "wind_speed_ms": wind,
+                "wind_gust_ms": round(wind * rng.uniform(1.8, 2.6), 1),
+                # Station-style heat metrics (Conduit@Empathy exposes Heat Index + WBGT directly)
+                "heat_index_max_c": heat_index_c(tmax, rh),
+                "wbgt_max_c": wbgt_c(tmax, rh, light),
+                # SI1145 visible+IR normalised to the file maximum (no W/m2 pyranometer on the station)
+                "light_index": light,
             }
         )
     return rows
@@ -90,7 +114,7 @@ def build(scenario: str, rng: random.Random) -> list[dict]:
 def main() -> None:
     rng = random.Random(2026)
     data = {
-        "station": "JKUAT Conduit Weather Station (synthetic replay)",
+        "station": "JKUAT Conduit@Empathy1 (sensor 61) - SYNTHETIC demo scenarios, not measurements",
         "location": {"lat": -1.0955, "lon": 37.0144, "name": "Juja, Kiambu County"},
         "base_date": BASE_DATE.isoformat(),
         "days": DAYS,
@@ -101,7 +125,7 @@ def main() -> None:
     for s, rows in data["scenarios"].items():
         r7 = sum(r["rainfall_mm"] for r in rows[-7:])
         r30 = sum(r["rainfall_mm"] for r in rows)
-        print(f"{s:11s} rain7={r7:6.1f}mm rain30={r30:6.1f}mm  soil_last={rows[-1]['soil_moisture_pct']}%  tmax_last={rows[-1]['temp_max_c']}C")
+        print(f"{s:11s} rain7={r7:6.1f}mm rain30={r30:6.1f}mm  wbgt_last={rows[-1]['wbgt_max_c']}C  tmax_last={rows[-1]['temp_max_c']}C")
     print(f"wrote {OUT}")
 
 

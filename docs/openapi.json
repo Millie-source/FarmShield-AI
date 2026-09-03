@@ -2125,6 +2125,51 @@
             ],
             "title": "Ndvi",
             "description": "Satellite NDVI if a provider supplied one"
+          },
+          "soil_moisture_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soil Moisture Pct",
+            "description": "Latest soil moisture used by the engine (vol. %)"
+          },
+          "soil_moisture_source": {
+            "type": "string",
+            "enum": [
+              "modelled",
+              "measured"
+            ],
+            "title": "Soil Moisture Source",
+            "description": "modelled = Hargreaves ET0 x Kc soil bucket (station has no probe)",
+            "default": "modelled"
+          },
+          "et0_mm_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Et0 Mm Day",
+            "description": "Latest reference evapotranspiration (Hargreaves)"
+          },
+          "heat_metric": {
+            "type": "string",
+            "enum": [
+              "wbgt",
+              "heat_index",
+              "tmax"
+            ],
+            "title": "Heat Metric",
+            "description": "Station metric that drove the heat sub-score",
+            "default": "tmax"
           }
         },
         "type": "object",
@@ -2159,8 +2204,10 @@
           "data_sources": [
             "mock:dry_spell"
           ],
+          "et0_mm_day": 5.1,
           "farm_id": 1,
           "farm_name": "Kamau Maize Plot",
+          "heat_metric": "tmax",
           "insurance_trigger": {
             "confidence": 1.0,
             "evidence": {
@@ -2189,6 +2236,8 @@
           },
           "readings_used": 30,
           "scenario": "dry_spell",
+          "soil_moisture_pct": 18.0,
+          "soil_moisture_source": "modelled",
           "stage": {
             "day_after_planting": 62,
             "day_in_stage": 12,
@@ -2211,7 +2260,8 @@
             "drought": {
               "level": "HIGH",
               "reasons": [
-                "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering"
+                "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering",
+                "Modelled soil moisture 18% is at the 18% wilting point; ET0 5.1 mm/day"
               ],
               "score": 81
             },
@@ -2519,7 +2569,7 @@
           "level": "HIGH",
           "reasons": [
             "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering",
-            "Soil moisture 12% is below the 18% wilting point",
+            "Modelled soil moisture 18% is at the 18% wilting point; ET0 5.1 mm/day",
             "22 consecutive dry days (<1 mm)"
           ],
           "score": 81
@@ -2779,25 +2829,19 @@
           },
           "rainfall_mm": {
             "type": "number",
-            "title": "Rainfall Mm"
+            "title": "Rainfall Mm",
+            "description": "Daily total from the station rain gauges"
           },
           "temp_max_c": {
             "type": "number",
-            "title": "Temp Max C"
+            "title": "Temp Max C",
+            "description": "Daily max of SHT Temperature"
           },
           "temp_min_c": {
             "type": "number",
             "title": "Temp Min C"
           },
-          "humidity_pct": {
-            "type": "number",
-            "title": "Humidity Pct"
-          },
-          "soil_moisture_pct": {
-            "type": "number",
-            "title": "Soil Moisture Pct"
-          },
-          "solar_radiation_wm2": {
+          "temp_mean_c": {
             "anyOf": [
               {
                 "type": "number"
@@ -2806,7 +2850,12 @@
                 "type": "null"
               }
             ],
-            "title": "Solar Radiation Wm2"
+            "title": "Temp Mean C"
+          },
+          "humidity_pct": {
+            "type": "number",
+            "title": "Humidity Pct",
+            "description": "Daily mean SHT Humidity"
           },
           "wind_speed_ms": {
             "anyOf": [
@@ -2817,7 +2866,76 @@
                 "type": "null"
               }
             ],
-            "title": "Wind Speed Ms"
+            "title": "Wind Speed Ms",
+            "description": "Daily mean wind speed"
+          },
+          "wind_gust_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Gust Ms",
+            "description": "Daily max wind speed"
+          },
+          "heat_index_max_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heat Index Max C",
+            "description": "Daily max Heat Index from the station"
+          },
+          "wbgt_max_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wbgt Max C",
+            "description": "Daily max Wet Bulb Globe Temperature from the station"
+          },
+          "light_index": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light Index",
+            "description": "SI1145 visible+IR normalised 0-1 (no W/m2 pyranometer)"
+          },
+          "soil_moisture_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soil Moisture Pct",
+            "description": "Measured only if a probe exists; the engine models it otherwise"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic",
+            "description": "True for replayed demo scenarios, False for real station data",
+            "default": false
           }
         },
         "type": "object",
@@ -2826,18 +2944,21 @@
           "rainfall_mm",
           "temp_max_c",
           "temp_min_c",
-          "humidity_pct",
-          "soil_moisture_pct"
+          "humidity_pct"
         ],
         "title": "WeatherReadingOut",
         "example": {
           "date": "2026-09-03",
+          "heat_index_max_c": 33.2,
           "humidity_pct": 38,
+          "light_index": 0.92,
           "rainfall_mm": 0.0,
-          "soil_moisture_pct": 12.0,
-          "solar_radiation_wm2": 288,
+          "synthetic": false,
           "temp_max_c": 33.7,
+          "temp_mean_c": 24.1,
           "temp_min_c": 15.2,
+          "wbgt_max_c": 27.1,
+          "wind_gust_ms": 7.4,
           "wind_speed_ms": 3.1
         }
       }

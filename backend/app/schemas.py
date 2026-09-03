@@ -136,22 +136,32 @@ class WeatherReadingOut(BaseModel):
                 "rainfall_mm": 0.0,
                 "temp_max_c": 33.7,
                 "temp_min_c": 15.2,
+                "temp_mean_c": 24.1,
                 "humidity_pct": 38,
-                "soil_moisture_pct": 12.0,
-                "solar_radiation_wm2": 288,
                 "wind_speed_ms": 3.1,
+                "wind_gust_ms": 7.4,
+                "heat_index_max_c": 33.2,
+                "wbgt_max_c": 27.1,
+                "light_index": 0.92,
+                "soil_moisture_pct": None,
+                "synthetic": False,
             }
         }
     )
 
     date: date
-    rainfall_mm: float
-    temp_max_c: float
+    rainfall_mm: float = Field(..., description="Daily total from the station rain gauges")
+    temp_max_c: float = Field(..., description="Daily max of SHT Temperature")
     temp_min_c: float
-    humidity_pct: float
-    soil_moisture_pct: float
-    solar_radiation_wm2: float | None = None
-    wind_speed_ms: float | None = None
+    temp_mean_c: float | None = None
+    humidity_pct: float = Field(..., description="Daily mean SHT Humidity")
+    wind_speed_ms: float | None = Field(None, description="Daily mean wind speed")
+    wind_gust_ms: float | None = Field(None, description="Daily max wind speed")
+    heat_index_max_c: float | None = Field(None, description="Daily max Heat Index from the station")
+    wbgt_max_c: float | None = Field(None, description="Daily max Wet Bulb Globe Temperature from the station")
+    light_index: float | None = Field(None, ge=0, le=1, description="SI1145 visible+IR normalised 0-1 (no W/m2 pyranometer)")
+    soil_moisture_pct: float | None = Field(None, description="Measured only if a probe exists; the engine models it otherwise")
+    synthetic: bool = Field(False, description="True for replayed demo scenarios, False for real station data")
 
 
 class WeatherHistoryOut(BaseModel):
@@ -183,7 +193,7 @@ class SubScoreOut(BaseModel):
                 "level": "HIGH",
                 "reasons": [
                     "Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering",
-                    "Soil moisture 12% is below the 18% wilting point",
+                    "Modelled soil moisture 18% is at the 18% wilting point; ET0 5.1 mm/day",
                     "22 consecutive dry days (<1 mm)",
                 ],
             }
@@ -288,7 +298,7 @@ class RiskOut(BaseModel):
                     "weights": {"drought": 0.4, "flood": 0.1, "heat": 0.3, "crop_health": 0.2},
                 },
                 "sub_scores": {
-                    "drought": {"score": 81, "level": "HIGH", "reasons": ["Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering"]},
+                    "drought": {"score": 81, "level": "HIGH", "reasons": ["Only 0 mm rain in the last 7 days vs 38 mm/week needed at flowering", "Modelled soil moisture 18% is at the 18% wilting point; ET0 5.1 mm/day"]},
                     "flood": {"score": 0, "level": "LOW", "reasons": ["0 mm in the last 72 h, below the 90 mm flood threshold"]},
                     "heat": {"score": 68, "level": "HIGH", "reasons": ["6 of the last 7 days exceeded 32°C (peak 33.9°C) during flowering"]},
                     "crop_health": {"score": 61, "level": "HIGH", "label": "POOR", "reasons": ["No satellite data: health inferred from weather stress over 30 days"]},
@@ -313,6 +323,10 @@ class RiskOut(BaseModel):
                 "readings_used": 30,
                 "window_days": 30,
                 "ndvi": None,
+                "soil_moisture_pct": 18.0,
+                "soil_moisture_source": "modelled",
+                "et0_mm_day": 5.1,
+                "heat_metric": "tmax",
             }
         }
     )
@@ -332,6 +346,10 @@ class RiskOut(BaseModel):
     readings_used: int
     window_days: int
     ndvi: float | None = Field(None, description="Satellite NDVI if a provider supplied one")
+    soil_moisture_pct: float | None = Field(None, description="Latest soil moisture used by the engine (vol. %)")
+    soil_moisture_source: Literal["modelled", "measured"] = Field("modelled", description="modelled = Hargreaves ET0 x Kc soil bucket (station has no probe)")
+    et0_mm_day: float | None = Field(None, description="Latest reference evapotranspiration (Hargreaves)")
+    heat_metric: Literal["wbgt", "heat_index", "tmax"] = Field("tmax", description="Station metric that drove the heat sub-score")
 
 
 class RiskHistoryItem(BaseModel):

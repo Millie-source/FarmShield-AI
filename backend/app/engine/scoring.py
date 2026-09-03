@@ -13,7 +13,11 @@ Scoring philosophy
   scaled by the stage sensitivity weight - a dry week hurts flowering maize far
   more than maturing maize (FAO-33 yield-response factors).
 * Only readings since planting count towards crop stress: rain that fell before
-  a seed was in the ground did not stress the plant.
+  a seed was in the ground did not stress the plant - but the soil-water bucket
+  is run over the whole history so soil moisture *at* planting is realistic.
+* The station has no soil probe: soil moisture is **modelled** (water_balance.py)
+  and every reason that uses it says so.  Heat stress prefers the station's WBGT
+  / Heat Index maxima and falls back to Tmax.
 * The overall score is a stage-weighted mean, floored at a fraction of the worst
   hazard so a single HIGH risk is never averaged away by three LOW ones.
 """
@@ -28,16 +32,19 @@ from .crops import (
     LOW_HUMIDITY_PCT,
     OVERALL_LABELS,
     OVERALL_WEIGHTS,
+    WBGT_PER_TMAX_DEGREE,
     WORST_HAZARD_FLOOR,
     CropSpec,
     get_crop,
 )
 from .types import Overall, Reading, RiskAssessment, Stage, SubScore, level_for
+from .water_balance import DayBalance, simulate
 
 # Maximum points each evidence component can contribute (before stage scaling).
 DROUGHT_PTS = {"short_deficit": 40, "long_deficit": 25, "soil": 25, "dry_run": 10}
 FLOOD_PTS = {"rain_24h": 45, "rain_72h": 45, "soil": 15, "trend": 10}
 HEAT_PTS = {"hot_day": 12, "hot_days_cap": 60, "long_hot_day": 1.5, "long_cap": 15, "excess": 15, "humidity": 10}
+HEAT_METRIC_LABELS = {"wbgt": "WBGT", "heat_index": "heat index", "tmax": "max temperature"}
 HEALTH_STRESS_WEIGHTS = {"drought": 0.55, "heat": 0.30, "flood": 0.15}
 NDVI_GOOD = 0.60  # dense, healthy canopy (typical vigorous maize/beans mid-season)
 NDVI_POOR = 0.35  # sparse / stressed canopy
@@ -78,7 +85,7 @@ def _consecutive_dry_days(readings: list[Reading]) -> int:
 
 
 # ----------------------------------------------------------------- drought ----
-def score_drought(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubScore:
+def score_drought(readings: list[Reading], spec: CropSpec, stage: Stage, soil_today: DayBalance | None = None) -> SubScore:
     reasons: list[str] = []
     raw = 0.0
     latest = readings[-1]
@@ -115,15 +122,20 @@ def score_drought(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubS
     else:
         reasons.append(f"Planted {stage.day_after_planting} days ago: cumulative deficit not yet assessed")
 
-    # 3. Soil moisture vs. wilting / stress thresholds.
-    soil = latest.soil_moisture_pct
-    if soil < spec.wilting_soil_pct:
-        raw += DROUGHT_PTS["soil"]
-        reasons.append(f"Soil moisture {soil:.0f}% is below the {spec.wilting_soil_pct:.0f}% wilting point")
-    elif soil < spec.stress_soil_pct:
-        frac = (spec.stress_soil_pct - soil) / (spec.stress_soil_pct - spec.wilting_soil_pct)
-        raw += DROUGHT_PTS["soil"] * 0.6 * frac
-        reasons.append(f"Soil moisture {soil:.0f}% is below the {spec.stress_soil_pct:.0f}% stress threshold")
+    # 3. Soil moisture (modelled water balance unless a probe value exists) vs. wilting / stress thresholds.
+    if soil_today is not None:
+        soil = soil_today.soil_moisture_pct
+        src = "Measured" if soil_today.measured else "Modelled"
+        et_txt = f"; ET0 {soil_today.et0_mm:.1f} mm/day" if not soil_today.measured else ""
+        if soil < spec.wilting_soil_pct + 0.5:
+            raw += DROUGHT_PTS["soil"]
+            reasons.append(f"{src} soil moisture {soil:.0f}% is at the {spec.wilting_soil_pct:.0f}% wilting point{et_txt}")
+        elif soil < spec.stress_soil_pct:
+            frac = (spec.stress_soil_pct - soil) / (spec.stress_soil_pct - spec.wilting_soil_pct)
+            raw += DROUGHT_PTS["soil"] * 0.6 * frac
+            reasons.append(f"{src} soil moisture {soil:.0f}% is below the {spec.stress_soil_pct:.0f}% stress threshold{et_txt}")
+        else:
+            reasons.append(f"{src} soil moisture {soil:.0f}% is above the {spec.stress_soil_pct:.0f}% stress threshold{et_txt}")
 
     # 4. Consecutive dry days.
     cdd = _consecutive_dry_days(readings)
@@ -144,7 +156,7 @@ def score_drought(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubS
 
 
 # ------------------------------------------------------------------- flood ----
-def score_flood(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubScore:
+def score_flood(readings: list[Reading], spec: CropSpec, stage: Stage, soil_today: DayBalance | None = None) -> SubScore:
     reasons: list[str] = []
     raw = 0.0
     latest = readings[-1]
@@ -164,14 +176,18 @@ def score_flood(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubSco
     else:
         reasons.append(f"{r72:.0f} mm in the last 72 h, below the {spec.heavy_rain_72h_mm:.0f} mm flood threshold")
 
-    soil = latest.soil_moisture_pct
-    field_capacity = spec.saturation_soil_pct - 6
-    if soil >= spec.saturation_soil_pct:
-        raw += FLOOD_PTS["soil"]
-        reasons.append(f"Soil moisture {soil:.0f}% is at saturation ({spec.saturation_soil_pct:.0f}%): waterlogging risk")
-    elif soil >= field_capacity:
-        raw += FLOOD_PTS["soil"] * 0.5
-        reasons.append(f"Soil moisture {soil:.0f}% is near field capacity; little buffer for more rain")
+    if soil_today is not None:
+        soil = soil_today.soil_moisture_pct
+        src = "Measured" if soil_today.measured else "Modelled"
+        field_capacity = spec.saturation_soil_pct - 6
+        if soil >= spec.saturation_soil_pct - 0.5:
+            raw += FLOOD_PTS["soil"]
+            reasons.append(f"{src} soil moisture {soil:.0f}% is at saturation ({spec.saturation_soil_pct:.0f}%): waterlogging risk")
+        elif soil >= field_capacity:
+            raw += FLOOD_PTS["soil"] * 0.5
+            reasons.append(f"{src} soil moisture {soil:.0f}% is near field capacity; little buffer for more rain")
+        if soil_today.runoff_mm > 0:
+            reasons.append(f"{soil_today.runoff_mm:.0f} mm of today's rain could not infiltrate the saturated soil (modelled runoff)")
 
     if len(readings) >= 7:
         prev4 = [r for r in _last_days(readings, 7) if r not in last3]
@@ -191,28 +207,64 @@ def score_flood(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubSco
 
 
 # -------------------------------------------------------------------- heat ----
-def score_heat(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubScore:
+def _heat_thresholds(spec: CropSpec, stage: Stage) -> dict[str, float]:
+    """Per-metric hot-day limits for this stage. The flowering tightening (max_temp_c -
+    flowering_max_temp_c) is applied 1:1 to Heat Index and scaled into WBGT space."""
+    offset = spec.max_temp_c - stage.max_temp_c
+    return {
+        "wbgt": spec.wbgt_max_c - offset * WBGT_PER_TMAX_DEGREE,
+        "heat_index": spec.heat_index_max_c - offset,
+        "tmax": stage.max_temp_c,
+    }
+
+
+def _exceedance(r: Reading, thr: dict[str, float]) -> tuple[str, float]:
+    """(metric, degrees above its limit) for the metric that exceeds its limit the most.
+    WBGT and Heat Index are read straight from the station when present; Tmax always counts."""
+    cands = {"tmax": r.temp_max_c - thr["tmax"]}
+    if r.wbgt_max_c is not None:
+        cands["wbgt"] = r.wbgt_max_c - thr["wbgt"]
+    if r.heat_index_max_c is not None:
+        cands["heat_index"] = r.heat_index_max_c - thr["heat_index"]
+    m = max(cands, key=cands.get)  # type: ignore[arg-type]
+    return m, cands[m]
+
+
+def score_heat(readings: list[Reading], spec: CropSpec, stage: Stage) -> tuple[SubScore, str]:
+    """Heat sub-score plus the station metric that drove it (wbgt | heat_index | tmax)."""
     reasons: list[str] = []
     raw = 0.0
-    threshold = stage.max_temp_c
+    thr = _heat_thresholds(spec, stage)
     short = _last_days(readings, 7)
-    hot_short = [r for r in short if r.temp_max_c > threshold]
-    hot_all = [r for r in readings if r.temp_max_c > threshold]
+    ex_short = [_exceedance(r, thr) for r in short]
+    ex_all = [_exceedance(r, thr) for r in readings]
+    hot_short = [(m, e) for m, e in ex_short if e > 0]
+    hot_all = [(m, e) for m, e in ex_all if e > 0]
+    stage_txt = _pretty(stage.name)
 
     raw += min(HEAT_PTS["hot_days_cap"], HEAT_PTS["hot_day"] * len(hot_short))
     extra_long = max(0, len(hot_all) - len(hot_short))
     raw += min(HEAT_PTS["long_cap"], HEAT_PTS["long_hot_day"] * extra_long)
+
+    driver = "tmax"
     if hot_short:
-        excess = mean(r.temp_max_c - threshold for r in hot_short)
+        counts: dict[str, int] = {}
+        for m, _ in hot_short:
+            counts[m] = counts.get(m, 0) + 1
+        driver = max(counts, key=counts.get)  # type: ignore[arg-type]
+        excess = mean(e for _, e in hot_short)
         raw += min(HEAT_PTS["excess"], excess * 5)
-        peak = max(r.temp_max_c for r in hot_short)
+        peak_m, peak_e = max(hot_short, key=lambda x: x[1])
         reasons.append(
-            f"{len(hot_short)} of the last {len(short)} days exceeded {threshold:.0f}°C "
-            f"(peak {peak:.1f}°C) during {_pretty(stage.name)}"
+            f"{len(hot_short)} of the last {len(short)} days exceeded the crop heat limit during {stage_txt} "
+            f"(worst: {HEAT_METRIC_LABELS[peak_m]} {thr[peak_m] + peak_e:.1f}°C vs {thr[peak_m]:.0f}°C limit)"
         )
+        if driver != "tmax":
+            reasons.append(f"Humid heat: read from the station's {HEAT_METRIC_LABELS[driver]} maxima (Tmax peak {max(r.temp_max_c for r in short):.1f}°C)")
     else:
         peak = max(r.temp_max_c for r in short)
-        reasons.append(f"No days above the {threshold:.0f}°C {_pretty(stage.name)} threshold in the last {len(short)} days (peak {peak:.1f}°C)")
+        metrics = " / ".join(HEAT_METRIC_LABELS[m] for m in ("wbgt", "heat_index", "tmax") if m == "tmax" or any(getattr(r, m + "_max_c") is not None for r in short))
+        reasons.append(f"No days above the {thr['tmax']:.0f}°C {stage_txt} limit in the last {len(short)} days (Tmax peak {peak:.1f}°C; checked {metrics})")
     if extra_long:
         reasons.append(f"{len(hot_all)} hot days in the last {len(readings)} readings")
 
@@ -226,9 +278,9 @@ def score_heat(readings: list[Reading], spec: CropSpec, stage: Stage) -> SubScor
 
     mult = _stage_multiplier(stage.sensitivity)
     if stage.is_critical and hot_short:
-        reasons.append(f"Heat during {_pretty(stage.name)} directly reduces yield: weighted x{mult:.2f}")
+        reasons.append(f"Heat during {stage_txt} directly reduces yield: weighted x{mult:.2f}")
     score = int(round(_clamp(raw * mult)))
-    return SubScore(score=score, level=level_for(score), reasons=reasons)
+    return SubScore(score=score, level=level_for(score), reasons=reasons), driver
 
 
 # ------------------------------------------------------------- crop health ----
@@ -303,9 +355,13 @@ def assess(readings: list[Reading], crop: str, stage: Stage, ndvi: float | None 
     since_planting = [r for r in ordered if r.date >= planting] or ordered[-1:]
     window = _last_days(since_planting, 30)
 
-    drought = score_drought(window, spec, stage)
-    flood = score_flood(window, spec, stage)
-    heat = score_heat(window, spec, stage)
+    # Soil-water bucket over the *whole* history (pre-planting rain sets the starting moisture).
+    balance = simulate(ordered, spec, planting)
+    soil_today = balance[-1]
+
+    drought = score_drought(window, spec, stage, soil_today)
+    flood = score_flood(window, spec, stage, soil_today)
+    heat, heat_metric = score_heat(window, spec, stage)
     health = score_crop_health(window, stage, drought, flood, heat, ndvi)
     subs = {"drought": drought, "flood": flood, "heat": heat, "crop_health": health}
     overall = score_overall(subs, stage)
@@ -320,4 +376,8 @@ def assess(readings: list[Reading], crop: str, stage: Stage, ndvi: float | None 
         readings_used=len(window),
         window_days=(window[-1].date - window[0].date).days + 1,
         ndvi=ndvi,
+        soil_moisture_pct=soil_today.soil_moisture_pct,
+        soil_moisture_source="measured" if soil_today.measured else "modelled",
+        et0_mm_day=soil_today.et0_mm,
+        heat_metric=heat_metric,
     )

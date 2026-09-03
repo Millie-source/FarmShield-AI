@@ -48,10 +48,15 @@ def _persist_readings(db: Session, farm: models.Farm, readings: list[Reading], s
             rainfall_mm=r.rainfall_mm,
             temp_max_c=r.temp_max_c,
             temp_min_c=r.temp_min_c,
+            temp_mean_c=r.temp_mean_c,
             humidity_pct=r.humidity_pct,
-            soil_moisture_pct=r.soil_moisture_pct,
-            solar_radiation_wm2=r.solar_radiation_wm2,
             wind_speed_ms=r.wind_speed_ms,
+            wind_gust_ms=r.wind_gust_ms,
+            heat_index_max_c=r.heat_index_max_c,
+            wbgt_max_c=r.wbgt_max_c,
+            light_index=r.light_index,
+            soil_moisture_pct=r.soil_moisture_pct,
+            synthetic=r.synthetic,
         )
         for r in readings
     )
@@ -93,6 +98,10 @@ def run_assessment(db: Session, farm: models.Farm, scenario: str | None = None, 
         "readings_used": a.readings_used,
         "window_days": a.window_days,
         "ndvi": ndvi,
+        "soil_moisture_pct": a.soil_moisture_pct,
+        "soil_moisture_source": a.soil_moisture_source,
+        "et0_mm_day": a.et0_mm_day,
+        "heat_metric": a.heat_metric,
     }
 
     row = models.RiskAssessment(

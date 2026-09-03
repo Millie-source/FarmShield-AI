@@ -38,10 +38,20 @@ def test_drought_ranks_scenarios(normal, dry_spell, heavy_rain):
     assert d["dry"] > d["normal"] > d["wet"]
 
 
-def test_drought_soil_below_wilting_adds_reason():
+def test_drought_modelled_soil_drains_to_wilting_and_says_modelled():
+    readings = make_readings(rain=0.0, tmax=31.0)  # no probe: bucket is modelled
+    a = assess(readings, "maize", stage(*MAIZE_FLOWERING))
+    assert a.soil_moisture_source == "modelled"
+    assert a.soil_moisture_pct < CROPS["maize"].stress_soil_pct  # 30 dry days drain the bucket past the stress threshold
+    assert any("modelled soil moisture" in r.lower() for r in a.drought.reasons)
+    assert a.drought.level == "HIGH"
+
+
+def test_drought_uses_measured_soil_when_probe_present():
     readings = make_readings(rain=0.0, soil=14.0)
     a = assess(readings, "maize", stage(*MAIZE_FLOWERING))
-    assert any("wilting" in r.lower() or "soil moisture" in r.lower() for r in a.drought.reasons)
+    assert a.soil_moisture_source == "measured" and a.soil_moisture_pct == 14.0
+    assert any("measured soil moisture" in r.lower() for r in a.drought.reasons)
 
 
 def test_drought_weighted_higher_at_flowering_than_maturity(dry_spell):
@@ -65,10 +75,11 @@ def test_flood_low_in_dry_spell(dry_spell):
     assert a.flood.score < 15
 
 
-def test_flood_saturated_soil_adds_reason():
-    readings = make_readings(rain=5.0, soil=46.0)
+def test_flood_modelled_saturation_adds_reason():
+    readings = make_readings(rain=45.0, tmax=23.0, humidity=90.0)  # 45 mm every day saturates the bucket
     a = assess(readings, "beans", stage(*BEANS_VEGETATIVE))
-    assert any("saturat" in r.lower() or "waterlog" in r.lower() for r in a.flood.reasons)
+    assert a.soil_moisture_pct >= 40
+    assert any("modelled soil moisture" in r.lower() and ("saturat" in r.lower() or "waterlog" in r.lower()) for r in a.flood.reasons)
 
 
 # ------------------------------------------------------------------- heat ----
@@ -89,6 +100,20 @@ def test_heat_uses_tighter_threshold_at_flowering():
     flowering = assess(readings, "maize", stage("maize", 62)).heat.score
     vegetative = assess(readings, "maize", stage("maize", 35)).heat.score
     assert flowering > vegetative
+
+
+def test_heat_reads_station_wbgt_when_tmax_is_moderate():
+    # Tmax 30 is under the maize flowering limit (32) but a WBGT of 31 is far above the WBGT limit
+    cool_air = assess(make_readings(tmax=30.0, humidity=80.0), "maize", stage("maize", 62))
+    humid = assess(make_readings(tmax=30.0, humidity=80.0, wbgt=31.0), "maize", stage("maize", 62))
+    assert cool_air.heat_metric == "tmax" and cool_air.heat.score < humid.heat.score
+    assert humid.heat_metric == "wbgt"
+    assert any("wbgt" in r.lower() for r in humid.heat.reasons)
+
+
+def test_heat_reads_heat_index_when_present():
+    a = assess(make_readings(tmax=30.0, humidity=80.0, heat_index=40.0), "beans", stage("beans", 40))
+    assert a.heat_metric == "heat_index" and a.heat.level in ("MEDIUM", "HIGH")
 
 
 def test_low_humidity_amplifies_heat():

@@ -37,10 +37,14 @@ def make_readings(
     tmax: float = 27.0,
     tmin: float = 14.0,
     humidity: float = 60.0,
-    soil: float = 30.0,
+    soil: float | None = None,
+    wbgt: float | None = None,
+    heat_index: float | None = None,
+    light: float | None = None,
     end: date = TODAY,
 ) -> list[Reading]:
-    """Uniform synthetic series, handy for isolating one variable in a test."""
+    """Uniform synthetic series, handy for isolating one variable in a test.
+    ``soil`` is a *measured* probe value (None = let the engine model it)."""
     return [
         Reading(
             date=end - timedelta(days=days - 1 - i),
@@ -49,6 +53,10 @@ def make_readings(
             temp_min_c=tmin,
             humidity_pct=humidity,
             soil_moisture_pct=soil,
+            wbgt_max_c=wbgt,
+            heat_index_max_c=heat_index,
+            light_index=light,
+            synthetic=True,
         )
         for i in range(days)
     ]

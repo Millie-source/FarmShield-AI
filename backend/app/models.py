@@ -64,10 +64,15 @@ class WeatherReading(Base):
     rainfall_mm: Mapped[float] = mapped_column(Float)
     temp_max_c: Mapped[float] = mapped_column(Float)
     temp_min_c: Mapped[float] = mapped_column(Float)
+    temp_mean_c: Mapped[float | None] = mapped_column(Float, nullable=True)
     humidity_pct: Mapped[float] = mapped_column(Float)
-    soil_moisture_pct: Mapped[float] = mapped_column(Float)
-    solar_radiation_wm2: Mapped[float | None] = mapped_column(Float, nullable=True)
     wind_speed_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    wind_gust_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    heat_index_max_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    wbgt_max_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    light_index: Mapped[float | None] = mapped_column(Float, nullable=True)  # SI1145 vis+IR, 0-1
+    soil_moisture_pct: Mapped[float | None] = mapped_column(Float, nullable=True)  # only if a probe exists
+    synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     farm: Mapped[Farm] = relationship(back_populates="readings")

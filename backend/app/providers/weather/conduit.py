@@ -93,8 +93,8 @@ def _parse(records: list[dict[str, Any]]) -> list[Reading]:
                 temp_max_c=round(tmax, 1),
                 temp_min_c=round(tmin, 1),
                 humidity_pct=round(mean(hum), 0) if hum else 60.0,
-                soil_moisture_pct=round(mean(soil), 1) if soil else 30.0,
-                solar_radiation_wm2=round(mean(solar), 0) if solar else None,
+                soil_moisture_pct=round(mean(soil), 1) if soil else None,
+                light_index=None if not solar else round(min(1.0, mean(solar) / 1000.0), 2),
                 wind_speed_ms=round(mean(wind), 1) if wind else None,
             )
         )

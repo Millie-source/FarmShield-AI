@@ -20,8 +20,18 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
+    from sqlalchemy import inspect
+
     from app import models  # noqa: F401  (register tables)
 
+    # weather_readings is a rebuildable audit cache: if its columns changed (station schema
+    # update) drop and recreate it instead of failing on an old dev SQLite file.
+    insp = inspect(engine)
+    if "weather_readings" in insp.get_table_names():
+        have = {c["name"] for c in insp.get_columns("weather_readings")}
+        want = {c.name for c in models.WeatherReading.__table__.columns}
+        if not want <= have:
+            models.WeatherReading.__table__.drop(bind=engine)
     Base.metadata.create_all(bind=engine)
 
 

@@ -16,7 +16,16 @@ Agronomic basis (cite these to judges / underwriters):
   temperature optima, drought sensitivity by stage and waterlogging tolerance.
 * Soil thresholds are volumetric water content (%) typical of the red
   clay-loam nitisols around Juja: permanent wilting point ~ 15-20 %,
-  field capacity ~ 35-40 %, saturation ~ 45 %.
+  field capacity ~ 35-40 %, saturation ~ 45 %.  The station has no soil
+  probe, so these are compared against the *modelled* bucket in
+  ``water_balance.py`` (Hargreaves ET0 x Kc, FAO-56 ch. 8).
+* Heat stress reads the station's Wet Bulb Globe Temperature (WBGT) and Heat
+  Index maxima when present (Conduit@Empathy exposes both), falling back to
+  Tmax.  A day counts as hot when ANY available metric exceeds its crop limit
+  (humid heat shows up in WBGT / HI, dry heat in Tmax).  WBGT / HI limits are
+  PROVISIONAL (ISO 7243 heavy-work WBGT band 28-30 C as the anchor for the most
+  heat-tolerant crops; HI ~ Tmax limit + 3 C) and must be calibrated against the
+  station once a season of real data exists.
 
 Sensitivity weights (0-1) express how much yield loss a stress episode causes
 in that stage - flowering / grain-fill are the most sensitive (FAO-33 yield
@@ -49,6 +58,8 @@ class CropSpec:
     stages: tuple[StageSpec, ...]
     max_temp_c: float  # daily max above which heat stress accumulates
     flowering_max_temp_c: float  # tighter limit in the most sensitive stage
+    wbgt_max_c: float  # station WBGT daily max above which heat stress accumulates (provisional)
+    heat_index_max_c: float  # station Heat Index daily max threshold (provisional)
     wilting_soil_pct: float  # below this: severe water stress
     stress_soil_pct: float  # below this: onset of stress
     saturation_soil_pct: float  # above this: waterlogging risk
@@ -74,6 +85,8 @@ CROPS: dict[str, CropSpec] = {
         ),
         max_temp_c=35.0,
         flowering_max_temp_c=32.0,
+        wbgt_max_c=29.0,
+        heat_index_max_c=38.0,
         wilting_soil_pct=18.0,
         stress_soil_pct=26.0,
         saturation_soil_pct=42.0,
@@ -93,6 +106,8 @@ CROPS: dict[str, CropSpec] = {
         ),
         max_temp_c=32.0,
         flowering_max_temp_c=30.0,
+        wbgt_max_c=27.5,
+        heat_index_max_c=35.0,
         wilting_soil_pct=18.0,
         stress_soil_pct=25.0,
         saturation_soil_pct=40.0,
@@ -112,6 +127,8 @@ CROPS: dict[str, CropSpec] = {
         ),
         max_temp_c=30.0,
         flowering_max_temp_c=27.0,  # tuberisation stops above ~27-30 C
+        wbgt_max_c=27.5,
+        heat_index_max_c=34.0,
         wilting_soil_pct=20.0,
         stress_soil_pct=28.0,
         saturation_soil_pct=40.0,
@@ -131,6 +148,8 @@ CROPS: dict[str, CropSpec] = {
         ),
         max_temp_c=34.0,
         flowering_max_temp_c=32.0,
+        wbgt_max_c=28.5,
+        heat_index_max_c=37.0,
         wilting_soil_pct=20.0,
         stress_soil_pct=28.0,
         saturation_soil_pct=42.0,
@@ -149,6 +168,8 @@ CROPS: dict[str, CropSpec] = {
         ),
         max_temp_c=30.0,
         flowering_max_temp_c=30.0,  # no flowering stage; same threshold
+        wbgt_max_c=27.5,
+        heat_index_max_c=34.0,
         wilting_soil_pct=20.0,
         stress_soil_pct=28.0,
         saturation_soil_pct=42.0,
@@ -162,6 +183,7 @@ CROP_KEYS: tuple[str, ...] = tuple(CROPS.keys())
 # ---- Scoring constants (shared across crops) -------------------------------
 
 DRY_DAY_MM = 1.0  # a day with < 1 mm is a "dry day" (WMO convention)
+WBGT_PER_TMAX_DEGREE = 0.6  # d(WBGT)/d(Tmax) ~ 0.6: scales the flowering tightening into WBGT space
 LOW_HUMIDITY_PCT = 40.0  # below this, evaporative demand amplifies heat stress
 HIGH_HUMIDITY_PCT = 85.0  # above this with heat -> fungal disease pressure
 

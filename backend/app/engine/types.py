@@ -27,20 +27,39 @@ def level_for(score: float) -> Level:
 
 @dataclass(frozen=True)
 class Reading:
-    """One day of weather-station observations for a location."""
+    """One day of weather-station observations (daily aggregate) for a location.
+
+    Only the first five fields are required.  The JKUAT Conduit@Empathy station has
+    no soil-moisture probe and no W/m2 pyranometer, so:
+
+    * ``soil_moisture_pct`` is None unless a probe exists - the engine *models* it
+      with ``engine/water_balance.py`` (Hargreaves ET0 x Kc, soil bucket);
+    * ``light_index`` is an optional 0-1 index from the SI1145 visible/IR sensor
+      (relative to the file maximum) and may only nudge ET0;
+    * ``heat_index_max_c`` / ``wbgt_max_c`` are the station's Heat Index and Wet
+      Bulb Globe Temperature daily maxima, preferred over Tmax for heat stress.
+
+    ``synthetic`` marks replayed demo scenarios so responses can report how many
+    days were real station data vs. synthetic.
+    """
 
     date: date
     rainfall_mm: float
     temp_max_c: float
     temp_min_c: float
     humidity_pct: float
-    soil_moisture_pct: float  # volumetric water content, 0-100
-    solar_radiation_wm2: float | None = None
+    temp_mean_c: float | None = None
     wind_speed_ms: float | None = None
+    wind_gust_ms: float | None = None
+    heat_index_max_c: float | None = None
+    wbgt_max_c: float | None = None
+    light_index: float | None = None
+    soil_moisture_pct: float | None = None
+    synthetic: bool = False
 
     @property
-    def temp_mean_c(self) -> float:
-        return (self.temp_max_c + self.temp_min_c) / 2
+    def tmean_c(self) -> float:
+        return self.temp_mean_c if self.temp_mean_c is not None else (self.temp_max_c + self.temp_min_c) / 2
 
 
 @dataclass(frozen=True)
@@ -105,6 +124,10 @@ class RiskAssessment:
     readings_used: int
     window_days: int
     ndvi: float | None = None
+    soil_moisture_pct: float | None = None  # latest value of the modelled (or measured) soil bucket
+    soil_moisture_source: str = "modelled"  # modelled | measured
+    et0_mm_day: float | None = None  # latest Hargreaves reference ET
+    heat_metric: str = "tmax"  # wbgt | heat_index | tmax - which station metric drove the heat score
 
     @property
     def sub_scores(self) -> dict[str, SubScore]:
@@ -140,6 +163,10 @@ class RiskAssessment:
             "readings_used": self.readings_used,
             "window_days": self.window_days,
             "ndvi": self.ndvi,
+            "soil_moisture_pct": self.soil_moisture_pct,
+            "soil_moisture_source": self.soil_moisture_source,
+            "et0_mm_day": self.et0_mm_day,
+            "heat_metric": self.heat_metric,
         }
 
 
