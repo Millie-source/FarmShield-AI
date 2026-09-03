@@ -1,0 +1,26 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////data/farmshield.db
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    volumes:
+      - farmshield-data:/data
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  farmshield-data:

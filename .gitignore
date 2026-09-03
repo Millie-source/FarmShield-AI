@@ -31,3 +31,4 @@ Thumbs.db
 # Notebooks
 .ipynb_checkpoints/
 notebooks/output/
+backend/tests/_test_farmshield.db
