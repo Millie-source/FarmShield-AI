@@ -163,14 +163,25 @@ export interface ScenarioSwitch {
   reassessed: (RiskSummary | null)[]
 }
 
+export interface AlertRequest {
+  language?: 'en' | 'sw'
+  force?: boolean
+  message?: string
+}
+
 export interface AlertPreview {
   farm_id: number
+  assessment_id: number
+  would_send: boolean
+  reason: string
   recipient: string
   language: 'en' | 'sw'
   message: string
   chars: number
-  would_send: boolean
-  reason: string
+  level: Level
+  score: number
+  last_alert_id: number | null
+  last_alert_at: string | null
   sender: string
 }
 
@@ -182,10 +193,21 @@ export interface Alert {
   recipient: string
   language: string
   message: string
+  chars: number
   status: string
   provider: string
+  source: string
   trigger_reason: string | null
+  provider_message_id: string | null
+  error: string | null
   created_at: string
+}
+
+export interface AlertSendOut {
+  farm_id: number
+  sent: boolean
+  reason: string
+  alert: Alert | null
 }
 
 export interface PartnerInfo {

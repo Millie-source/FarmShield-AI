@@ -1,6 +1,8 @@
 import type {
   Alert,
   AlertPreview,
+  AlertRequest,
+  AlertSendOut,
   BulkRisk,
   Farm,
   FarmCreate,
@@ -91,10 +93,10 @@ export const api = {
 
   alerts: {
     list: (farmId: number) => request<Alert[]>(`/farms/${farmId}/alerts`),
-    preview: (farmId: number, language?: 'en' | 'sw') =>
-      request<AlertPreview>(`/farms/${farmId}/alerts/preview${language ? `?language=${language}` : ''}`, { method: 'POST' }),
-    send: (farmId: number, language?: 'en' | 'sw', force = true) =>
-      request<Alert>(`/farms/${farmId}/alerts/send?force=${force}${language ? `&language=${language}` : ''}`, { method: 'POST' }),
+    preview: (farmId: number, body: AlertRequest = {}) =>
+      request<AlertPreview>(`/farms/${farmId}/alerts/preview`, { method: 'POST', body: json(body) }),
+    send: (farmId: number, body: AlertRequest = {}) =>
+      request<AlertSendOut>(`/farms/${farmId}/alerts/send`, { method: 'POST', body: json(body) }),
   },
 
   /** Partner API: every call carries the X-API-Key header and returns the raw response for the live viewer. */
