@@ -334,7 +334,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           }
         }
       }
@@ -507,6 +507,216 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/alerts/preview": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Preview the SMS that would be sent",
+        "description": "Builds the exact <=160-char message from the latest assessment (running one if needed) and applies the alert policy: no SMS for LOW risk unless an insurance trigger fired, no repeat within `ALERT_DEDUPE_HOURS` unless the risk level changed. Nothing is sent or stored.",
+        "operationId": "preview_alert_farms__farm_id__alerts_preview_post",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AlertRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Optional overrides; send `{}` or nothing for defaults",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertPreviewOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/alerts/send": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Send an SMS alert to the farmer",
+        "description": "Applies the same policy as `/preview`; when warranted (or `force=true`) sends via the configured sender (Africa's Talking sandbox or console) and records the alert. If the gateway fails the message is logged to the console and the alert is stored with `source: \"fallback\"` - the call still returns 200. A suppressed alert also returns 200 with `sent: false` and the reason.",
+        "operationId": "send_alert_farms__farm_id__alerts_send_post",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AlertRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Optional overrides; send `{}` or nothing for defaults",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSendOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/farms/{farm_id}/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Alert history for a farm (newest first)",
+        "operationId": "list_alerts_farms__farm_id__alerts_get",
+        "parameters": [
+          {
+            "name": "farm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Farm Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertOut"
+                  },
+                  "title": "Response List Alerts Farms  Farm Id  Alerts Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -803,7 +1013,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Content",
+            "description": "Unprocessable Entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -833,7 +1043,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Health Health Get"
                 }
@@ -888,6 +1097,338 @@
         ],
         "title": "AdviceOut"
       },
+      "AlertOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "recipient": {
+            "type": "string",
+            "title": "Recipient"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "chars": {
+            "type": "integer",
+            "title": "Chars"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "failed",
+              "queued",
+              "previewed"
+            ],
+            "title": "Status"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "Sender that actually delivered it: console | africastalking"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "africastalking | console | fallback (configured gateway failed, console took over)"
+          },
+          "trigger_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Reason"
+          },
+          "provider_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Message Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Gateway error if the configured sender failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "farm_id",
+          "assessment_id",
+          "channel",
+          "recipient",
+          "language",
+          "message",
+          "chars",
+          "status",
+          "provider",
+          "source",
+          "trigger_reason",
+          "created_at"
+        ],
+        "title": "AlertOut",
+        "example": {
+          "assessment_id": 12,
+          "channel": "sms",
+          "chars": 118,
+          "created_at": "2026-09-03T08:00:05Z",
+          "error": "AT_API_KEY not set",
+          "farm_id": 1,
+          "id": 4,
+          "language": "sw",
+          "message": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi kutoa maua. Mwagilia ndani ya saa 24-48. Usiweke mbolea.",
+          "provider": "console",
+          "recipient": "+254711000001",
+          "source": "fallback",
+          "status": "sent",
+          "trigger_reason": "level_changed:MEDIUM->HIGH"
+        }
+      },
+      "AlertPreviewOut": {
+        "properties": {
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "would_send": {
+            "type": "boolean",
+            "title": "Would Send"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "forced | first_alert | level_changed:A->B | insurance_trigger | repeat_after_window | duplicate_within_window:Nh | below_alert_threshold:L<M"
+          },
+          "recipient": {
+            "type": "string",
+            "title": "Recipient"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Exact SMS text that would be sent"
+          },
+          "chars": {
+            "type": "integer",
+            "title": "Chars",
+            "description": "Message length (target <= 160 for one SMS segment)"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Level"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "last_alert_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Alert Id"
+          },
+          "last_alert_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Alert At"
+          },
+          "sender": {
+            "type": "string",
+            "title": "Sender",
+            "description": "Configured sender: console | africastalking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farm_id",
+          "assessment_id",
+          "would_send",
+          "reason",
+          "recipient",
+          "language",
+          "message",
+          "chars",
+          "level",
+          "score",
+          "sender"
+        ],
+        "title": "AlertPreviewOut",
+        "description": "What `POST /farms/{id}/alerts/send` would do right now, without sending.",
+        "example": {
+          "assessment_id": 12,
+          "chars": 139,
+          "farm_id": 1,
+          "language": "sw",
+          "last_alert_at": "2026-09-03T06:00:00Z",
+          "last_alert_id": 3,
+          "level": "HIGH",
+          "message": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi kutoa maua. Mwagilia ndani ya saa 24-48. Usiweke mbolea. Bima inaweza kulipa.",
+          "reason": "level_changed:MEDIUM->HIGH",
+          "recipient": "+254711000001",
+          "score": 72,
+          "sender": "console",
+          "would_send": true
+        }
+      },
+      "AlertRequest": {
+        "properties": {
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "en",
+                  "sw"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Override the farmer's preferred language"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "description": "Send even if the dedupe policy says the alert is not warranted (dashboard button)",
+            "default": false
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Custom text instead of the generated SMS (send only; trimmed to 160 chars)"
+          }
+        },
+        "type": "object",
+        "title": "AlertRequest",
+        "description": "Options for previewing / sending an SMS alert. All fields optional.",
+        "example": {
+          "force": false,
+          "language": "sw"
+        }
+      },
+      "AlertSendOut": {
+        "properties": {
+          "farm_id": {
+            "type": "integer",
+            "title": "Farm Id"
+          },
+          "sent": {
+            "type": "boolean",
+            "title": "Sent",
+            "description": "False when the dedupe policy suppressed the SMS (HTTP still 200)"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "alert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recorded alert when sent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "farm_id",
+          "sent",
+          "reason"
+        ],
+        "title": "AlertSendOut",
+        "example": {
+          "farm_id": 1,
+          "reason": "duplicate_within_window:6h",
+          "sent": false
+        }
+      },
       "ApiError": {
         "properties": {
           "detail": {
@@ -924,7 +1465,6 @@
           },
           "errors": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "type": "array",
@@ -1229,7 +1769,6 @@
             "description": "Rule id: drought_rainfall_deficit | excess_rainfall | heat_days"
           },
           "evidence": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Evidence",
             "description": "Observed values behind the decision, for audit"
@@ -1242,7 +1781,6 @@
             "description": "Data completeness x margin from threshold"
           },
           "policy": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Policy"
           }
@@ -1822,6 +2360,14 @@
             "type": "array",
             "title": "Reassessed",
             "description": "New summaries per farm (if reassess=true)"
+          },
+          "alerts_sent": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Alerts Sent",
+            "description": "Alert ids sent when notify=true"
           }
         },
         "type": "object",
@@ -1846,6 +2392,12 @@
             "title": "Reassess",
             "description": "Re-run the risk engine for every farm after switching",
             "default": true
+          },
+          "notify": {
+            "type": "boolean",
+            "title": "Notify",
+            "description": "After re-assessing, send SMS alerts to farmers whose risk change warrants one (dedupe rules apply)",
+            "default": false
           }
         },
         "type": "object",
@@ -2067,7 +2619,6 @@
             "title": "Rule"
           },
           "evidence": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Evidence"
           },
@@ -2078,7 +2629,6 @@
             "title": "Confidence"
           },
           "policy": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Policy"
           },
@@ -2178,13 +2728,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",

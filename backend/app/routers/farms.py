@@ -78,7 +78,7 @@ def get_farm(farm: models.Farm = Depends(get_farm_or_404), db: Session = Depends
     return farm_payload(db, farm)
 
 
-@router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a farm", responses={404: {"model": ApiError}})
+@router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None, summary="Delete a farm", responses={404: {"model": ApiError}})
 def delete_farm(farm: models.Farm = Depends(get_farm_or_404), db: Session = Depends(get_db)) -> None:
     db.delete(farm)
     db.commit()

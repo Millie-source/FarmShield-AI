@@ -8,8 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import farms, partners, risk
+from app.routers import alerts, farms, partners, risk
 from app.seed import seed_if_empty
+from app.services.assessment import assess_unscored_farms
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("farmshield")
@@ -41,6 +42,7 @@ Partners authenticate with an `X-API-Key` header on the `/api/v1` routes.
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     seed_if_empty()
+    assess_unscored_farms()
     log.info("FarmShield API ready - provider=%s scenario=%s", settings.weather_provider, settings.default_scenario)
     yield
 
@@ -66,6 +68,7 @@ app.add_middleware(
 app.include_router(farms.router)
 app.include_router(risk.router)
 app.include_router(risk.scenario_router)
+app.include_router(alerts.router)
 app.include_router(partners.router)
 
 
@@ -76,4 +79,6 @@ def health() -> dict:
         "app": settings.app_name,
         "environment": settings.environment,
         "weather_provider": settings.weather_provider,
+        "sms_sender": settings.sms_sender,
+        "gemini": bool(settings.gemini_api_key),
     }

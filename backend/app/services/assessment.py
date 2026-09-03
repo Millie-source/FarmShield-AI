@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.db import SessionLocal
 from app.engine import Policy, assess, check_trigger, derive_stage, get_crop
 from app.engine.types import Reading
 from app.providers.satellite.base import get_satellite_provider
@@ -182,3 +183,19 @@ def farm_payload(db: Session, farm: models.Farm, today: date | None = None) -> d
         "days_after_planting": stage.day_after_planting,
         "latest_risk": risk_summary(latest_assessment(db, farm.id)),
     }
+
+
+def assess_unscored_farms() -> int:
+    """Startup helper: score any farm that has never been assessed so listings show a score immediately."""
+    n = 0
+    with SessionLocal() as db:
+        for farm in db.scalars(select(models.Farm).order_by(models.Farm.id)).all():
+            if latest_assessment(db, farm.id) is None:
+                try:
+                    run_assessment(db, farm)
+                    n += 1
+                except Exception as exc:  # noqa: BLE001 - startup must not fail on one bad farm
+                    log.warning("Initial assessment for farm %s failed: %s", farm.id, exc)
+    if n:
+        log.info("Assessed %d previously unscored farm(s) at startup", n)
+    return n

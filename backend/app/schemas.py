@@ -362,11 +362,13 @@ class ScenarioUpdate(BaseModel):
 
     scenario: Scenario
     reassess: bool = Field(True, description="Re-run the risk engine for every farm after switching")
+    notify: bool = Field(False, description="After re-assessing, send SMS alerts to farmers whose risk change warrants one (dedupe rules apply)")
 
 
 class ScenarioSwitchOut(BaseModel):
     scenario: Scenario
     reassessed: list[RiskSummary | None] = Field(default_factory=list, description="New summaries per farm (if reassess=true)")
+    alerts_sent: list[int] = Field(default_factory=list, description="Alert ids sent when notify=true")
 
 
 # ------------------------------------------------------------------- errors ----
@@ -465,3 +467,115 @@ class TriggerCheckOut(BaseModel):
     assessed_at: datetime
     scenario: str | None
     data_sources: list[str]
+
+
+# ------------------------------------------------------------------- alerts ----
+
+
+class AlertRequest(BaseModel):
+    """Options for previewing / sending an SMS alert. All fields optional."""
+
+    model_config = ConfigDict(json_schema_extra={"example": {"language": "sw", "force": False}})
+
+    language: Literal["en", "sw"] | None = Field(None, description="Override the farmer's preferred language")
+    force: bool = Field(False, description="Send even if the dedupe policy says the alert is not warranted (dashboard button)")
+    message: str | None = Field(None, max_length=320, description="Custom text instead of the generated SMS (send only; trimmed to 160 chars)")
+
+
+class AlertPreviewOut(BaseModel):
+    """What `POST /farms/{id}/alerts/send` would do right now, without sending."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "farm_id": 1,
+                "assessment_id": 12,
+                "would_send": True,
+                "reason": "level_changed:MEDIUM->HIGH",
+                "recipient": "+254711000001",
+                "language": "sw",
+                "message": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi kutoa maua. Mwagilia ndani ya saa 24-48. Usiweke mbolea. Bima inaweza kulipa.",
+                "chars": 139,
+                "level": "HIGH",
+                "score": 72,
+                "last_alert_id": 3,
+                "last_alert_at": "2026-09-03T06:00:00Z",
+                "sender": "console",
+            }
+        }
+    )
+
+    farm_id: int
+    assessment_id: int
+    would_send: bool
+    reason: str = Field(
+        ...,
+        description="forced | first_alert | level_changed:A->B | insurance_trigger | repeat_after_window | duplicate_within_window:Nh | below_alert_threshold:L<M",
+    )
+    recipient: str
+    language: str
+    message: str = Field(..., description="Exact SMS text that would be sent")
+    chars: int = Field(..., description="Message length (target <= 160 for one SMS segment)")
+    level: Level
+    score: int
+    last_alert_id: int | None = None
+    last_alert_at: datetime | None = None
+    sender: str = Field(..., description="Configured sender: console | africastalking")
+
+
+class AlertOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": 4,
+                "farm_id": 1,
+                "assessment_id": 12,
+                "channel": "sms",
+                "recipient": "+254711000001",
+                "language": "sw",
+                "message": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi kutoa maua. Mwagilia ndani ya saa 24-48. Usiweke mbolea.",
+                "chars": 118,
+                "status": "sent",
+                "provider": "console",
+                "source": "fallback",
+                "trigger_reason": "level_changed:MEDIUM->HIGH",
+                "provider_message_id": None,
+                "error": "AT_API_KEY not set",
+                "created_at": "2026-09-03T08:00:05Z",
+            }
+        }
+    )
+
+    id: int
+    farm_id: int
+    assessment_id: int | None
+    channel: str
+    recipient: str
+    language: str
+    message: str
+    chars: int
+    status: Literal["sent", "failed", "queued", "previewed"]
+    provider: str = Field(..., description="Sender that actually delivered it: console | africastalking")
+    source: str = Field(..., description="africastalking | console | fallback (configured gateway failed, console took over)")
+    trigger_reason: str | None
+    provider_message_id: str | None = None
+    error: str | None = Field(None, description="Gateway error if the configured sender failed")
+    created_at: datetime
+
+
+class AlertSendOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "farm_id": 1,
+                "sent": False,
+                "reason": "duplicate_within_window:6h",
+                "alert": None,
+            }
+        }
+    )
+
+    farm_id: int
+    sent: bool = Field(..., description="False when the dedupe policy suppressed the SMS (HTTP still 200)")
+    reason: str
+    alert: AlertOut | None = Field(None, description="The recorded alert when sent")

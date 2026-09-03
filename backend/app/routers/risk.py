@@ -14,6 +14,7 @@ from app.engine.sample_data import SCENARIOS
 from app.providers.weather import get_weather_provider, scenario_state
 from app.routers.farms import get_farm_or_404
 from app.schemas import ApiError, RiskHistoryItem, RiskOut, Scenario, ScenarioOut, ScenarioSwitchOut, ScenarioUpdate
+from app.services import alerts as alert_service
 from app.services.assessment import as_utc, get_or_create_latest, risk_payload, risk_summary, run_assessment
 
 log = logging.getLogger("farmshield.risk")
@@ -115,11 +116,21 @@ def set_scenario(body: ScenarioUpdate, db: Session = Depends(get_db)) -> dict:
     if settings.weather_provider.lower() != "mock":
         log.info("Scenario switched to %s but WEATHER_PROVIDER=%s; only used as fallback", body.scenario, settings.weather_provider)
     summaries: list[dict | None] = []
+    alerts_sent: list[int] = []
     if body.reassess:
         for farm in db.scalars(select(models.Farm).order_by(models.Farm.id)).all():
             try:
-                summaries.append(risk_summary(run_assessment(db, farm)))
+                row = run_assessment(db, farm)
             except Exception as exc:  # noqa: BLE001
                 log.warning("Re-assessment of farm %s failed: %s", farm.id, exc)
                 summaries.append(None)
-    return {"scenario": body.scenario, "reassessed": summaries}
+                continue
+            summaries.append(risk_summary(row))
+            if body.notify:
+                try:
+                    sent = alert_service.notify_if_warranted(db, farm, row)
+                    if sent is not None:
+                        alerts_sent.append(sent.id)
+                except Exception as exc:  # noqa: BLE001 - SMS problems must not break the switch
+                    log.warning("Alert for farm %s failed: %s", farm.id, exc)
+    return {"scenario": body.scenario, "reassessed": summaries, "alerts_sent": alerts_sent}

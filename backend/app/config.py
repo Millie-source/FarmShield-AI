@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     at_sender_id: str = ""
     sms_sender: str = "console"  # console | africastalking
 
+    # Alerts: when a new assessment warrants an SMS and how aggressively to dedupe
+    alert_min_level: str = "MEDIUM"  # LOW | MEDIUM | HIGH - lowest overall level that triggers an alert
+    alert_dedupe_hours: int = 6  # no repeat SMS within this window unless the level changes
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
