@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { Farm, Risk, RiskHistoryItem, WeatherHistory } from '../api/types'
 import AdviceCard from '../components/AdviceCard'
 import AlertsPanel from '../components/AlertsPanel'
+import DataCoverageBadge from '../components/DataCoverageBadge'
 import ReasonsList from '../components/ReasonsList'
 import RiskPanel from '../components/RiskPanel'
 import WeatherChart from '../components/WeatherChart'
@@ -80,6 +81,7 @@ export default function FarmDetail() {
           <p className="text-sm text-stone-500">
             {farm.farmer_name} · {farm.phone} · {farm.lat.toFixed(4)}, {farm.lon.toFixed(4)} · {farm.area_ha ? `${farm.area_ha} ha` : 'area n/a'}
           </p>
+          <DataCoverageBadge coverage={risk.data_coverage} sources={risk.data_sources} className="mt-2" />
         </div>
         <Button variant="ghost" onClick={reassess} disabled={assessing}>
           {assessing ? <Spinner /> : '↻'} Re-assess now
@@ -111,7 +113,7 @@ export default function FarmDetail() {
         <ReasonsList risk={risk} />
       </div>
 
-      {weather && <WeatherChart readings={weather.readings} source={weather.source} />}
+      {weather && <WeatherChart readings={weather.readings} source={weather.source} soil={risk.soil_moisture_pct} soilSource={risk.soil_moisture_source} heatMetric={risk.heat_metric} />}
 
       <AlertsPanel farmId={farm.id} language={farm.language} onSent={notify} />
 

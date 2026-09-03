@@ -115,9 +115,23 @@ export interface Risk {
   assessed_at: string
   scenario: string | null
   data_sources: string[]
+  data_coverage: DataCoverage | null
   readings_used: number
   window_days: number
   ndvi: number | null
+  soil_moisture_pct: number | null
+  soil_moisture_source: 'modelled' | 'measured'
+  et0_mm_day: number | null
+  heat_metric: 'wbgt' | 'heat_index' | 'tmax'
+}
+
+/** How much of the 30-day scoring window is real JKUAT station data vs synthetic backfill. */
+export interface DataCoverage {
+  real_days: number
+  synthetic_days: number
+  from: string | null
+  to: string | null
+  station: string
 }
 
 export interface RiskHistoryItem {
@@ -139,15 +153,22 @@ export interface WeatherReading {
   rainfall_mm: number
   temp_max_c: number
   temp_min_c: number
+  temp_mean_c: number | null
   humidity_pct: number
-  soil_moisture_pct: number
-  solar_radiation_wm2: number | null
   wind_speed_ms: number | null
+  wind_gust_ms: number | null
+  heat_index_max_c: number | null
+  wbgt_max_c: number | null
+  light_index: number | null
+  soil_moisture_pct: number | null
+  synthetic: boolean
 }
 
 export interface WeatherHistory {
   farm_id: number
   source: string
+  data_sources: string[]
+  data_coverage: DataCoverage
   days: number
   readings: WeatherReading[]
 }
@@ -161,6 +182,7 @@ export interface ScenarioState {
 export interface ScenarioSwitch {
   scenario: Scenario
   reassessed: (RiskSummary | null)[]
+  alerts_sent: number[]
 }
 
 export interface AlertRequest {
@@ -249,4 +271,5 @@ export interface TriggerCheckOut {
   assessed_at: string
   scenario: string | null
   data_sources: string[]
+  data_coverage: DataCoverage | null
 }

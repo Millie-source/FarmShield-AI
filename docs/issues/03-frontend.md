@@ -17,8 +17,8 @@ The Vite + React + Tailwind app that makes the **Farm Risk Score** the hero of t
 
 ## Deliverables
 
-- [ ] `pages/Dashboard.tsx` - farm cards: name, crop + stage, overall score, colour-coded level
-- [ ] `pages/FarmDetail.tsx` - the hero panel:
+- [x] `pages/Dashboard.tsx` - farm cards: name, crop + stage, overall score, colour-coded level
+- [x] `pages/FarmDetail.tsx` - the hero panel:
 
   ```
   FARM RISK SCORE
@@ -29,11 +29,11 @@ The Vite + React + Tailwind app that makes the **Farm Risk Score** the hero of t
   Overall  72 / 100  — HIGH CLIMATE RISK
   ```
   plus: "why" reasons list, advice card with EN / SW toggle, 30-day rainfall + temperature chart (Recharts), alert history, **Send SMS alert** button with exact message preview
-- [ ] `pages/RegisterFarm.tsx` - name, phone, crop, planting date, location (lat/lon inputs or Leaflet map click)
-- [ ] `pages/PartnerApi.tsx` - "For insurers & banks": pick demo API key (`acme-insurance` / `harvest-sacco`), choose farm, fire request live, show request + JSON response side by side, bulk / portfolio table
-- [ ] Header scenario switcher: calls backend scenario switch + re-assess, animates score deltas
-- [ ] `src/api/` typed client generated or hand-written from `docs/openapi.json`
-- [ ] Loading skeletons, error toasts, responsive layout
+- [x] `pages/RegisterFarm.tsx` - name, phone, crop, planting date, location (lat/lon inputs or Leaflet map click)
+- [x] `pages/PartnerApi.tsx` - "For insurers & banks": pick demo API key (`acme-insurance` / `harvest-sacco`), choose farm, fire request live, show request + JSON response side by side, bulk / portfolio table
+- [x] Header scenario switcher: calls backend scenario switch + re-assess, animates score deltas
+- [x] `src/api/` typed client generated or hand-written from `docs/openapi.json`
+- [x] Loading skeletons, error toasts, responsive layout
 
 ## Contract
 
@@ -43,12 +43,12 @@ Routes used: `GET /farms`, `POST /farms`, `GET /farms/{id}`, `GET /farms/{id}/ri
 
 ## Acceptance criteria
 
-- [ ] register farm, see score, flip scenario, see score change, SMS preview, partner page, fire API call: all in under 2 minutes
-- [ ] hero panel matches the layout above with 🔴 🟡 🟢 and `72 / 100 — HIGH CLIMATE RISK`
-- [ ] EN / SW toggle swaps advice text
-- [ ] chart shows 30 days of rainfall (bars) + temperature (line)
-- [ ] partner page shows request headers incl. `X-API-Key` and pretty-printed JSON response; invalid key shows the 401
-- [ ] usable on a phone-width viewport
+- [x] register farm, see score, flip scenario, see score change, SMS preview, partner page, fire API call: all in under 2 minutes
+- [x] hero panel matches the layout above with 🔴 🟡 🟢 and `72 / 100 — HIGH CLIMATE RISK`
+- [x] EN / SW toggle swaps advice text
+- [x] chart shows 30 days of rainfall (bars) + temperature (line)
+- [x] partner page shows request headers incl. `X-API-Key` and pretty-printed JSON response; invalid key shows the 401
+- [x] usable on a phone-width viewport
 
 ## Suggested order
 
@@ -60,3 +60,13 @@ Routes used: `GET /farms`, `POST /farms`, `GET /farms/{id}`, `GET /farms/{id}/ri
 6. PartnerApi page
 7. Swap mocks for the real backend; polish animations, mobile
 8. PR `feat/frontend` into `main`
+
+## Update Sept 2026 - show the real station data provenance
+
+- [x] `data_coverage` badge on FarmDetail: "5 real days · 25 modelled days · JKUAT station" (tooltip: station, date range, sources) - `components/DataCoverageBadge.tsx`
+- [x] `data_sources` chips + coverage badge under the JSON in the partner API response viewer
+- [x] `api/types.ts` updated: `DataCoverage`, new `WeatherReading` fields (WBGT, heat index, light index, optional soil, `synthetic`), `Risk.soil_moisture_pct/_source`, `heat_metric`
+- [x] weather chart footer shows *modelled* soil moisture and the 7-day WBGT peak / which heat metric drove the score
+- [ ] header replay controls (`POST /admin/replay/start | step | reset`) so the pitch can walk through the real season
+- [ ] chart: WBGT / heat-index line and the modelled soil-moisture series (`GET /farms/{id}/weather` already returns the fields)
+- [ ] mark synthetic days visually in the rainfall bars (`readings[].synthetic`)

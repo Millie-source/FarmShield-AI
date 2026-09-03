@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, API_URL, curlFor, type RawResponse } from '../api/client'
-import type { BulkRisk, Farm, Policy } from '../api/types'
+import type { BulkRisk, DataCoverage, Farm, Policy } from '../api/types'
+import DataCoverageBadge from '../components/DataCoverageBadge'
 import { Button, Card, LevelPill, prettyStage, Spinner } from '../components/ui'
 import { useScenario } from '../context/ScenarioContext'
 
@@ -50,6 +51,11 @@ export default function PartnerApi() {
         return { method: 'GET', path: '/api/v1/me', headers: h, body: undefined as unknown }
     }
   }, [apiKey, endpoint, farmId, farms, policy])
+
+  const provenance = useMemo(() => {
+    const b = resp?.body as { data_sources?: string[]; data_coverage?: DataCoverage | null } | undefined
+    return b && Array.isArray(b.data_sources) ? b : null
+  }, [resp])
 
   const fire = async () => {
     setBusy(true)
@@ -167,6 +173,15 @@ export default function PartnerApi() {
             <pre className="max-h-[28rem] overflow-auto rounded-xl bg-stone-900 p-4 text-xs leading-relaxed text-stone-100">
               {resp ? JSON.stringify(resp.body, null, 2) : '// press "Send request"'}
             </pre>
+            {provenance && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="font-semibold uppercase tracking-wider text-stone-500">Data</span>
+                {provenance.data_sources?.map((src) => (
+                  <span key={src} className="rounded-full bg-stone-100 px-2 py-0.5 font-mono text-stone-700">{src}</span>
+                ))}
+                <DataCoverageBadge coverage={provenance.data_coverage} sources={provenance.data_sources} />
+              </div>
+            )}
           </div>
         </div>
       </Card>

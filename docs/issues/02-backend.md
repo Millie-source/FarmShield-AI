@@ -74,3 +74,23 @@ The FastAPI service that ingests weather data, persists farms and assessments, w
 5. `advisor.py` with fallback; `sms.py` + `alerts.py` + alert routes
 6. `conduit.py` once the payload is known; `PUT /scenario`
 7. PR `feat/backend` into `main`
+
+## Update Sept 2026 - real Conduit@Empathy API + station data
+
+`POST https://conduit.jhubafrica.com/data.php` (form: `apikey`, `email`, `fromdate`, `todate`) -> JSON, field names expected to match the CSV export.
+
+- [x] `CONDUIT_API_URL`, `CONDUIT_API_KEY`, `CONDUIT_EMAIL` in `config.py` + `.env.example`; never hard-coded or logged
+- [x] `providers/weather/conduit_api.py` - `ConduitApiClient.fetch_raw(fromdate, todate)`: httpx form POST, 30 s timeout, 3x backoff on 5xx / timeouts, typed `ConduitError` on non-200 / non-JSON / error envelope, first 300 chars of the body logged
+- [x] `scripts/conduit_probe.py` - 1-day discovery call: HTTP status, top-level JSON type / keys, row count, first 2 rows, column names (`make probe`)
+- [ ] **run the probe with the real key and finalise the JSON -> Reading mapping** (mapper currently targets the CSV column names, tolerant of missing keys)
+- [x] API rows normalised to the same raw-row shape as the GeoCSV parser -> shared `ingest/resample.py` pipeline
+- [x] cache `backend/data/cache/conduit_{from}_{to}.json` - 15 min TTL for windows including today, forever for past windows
+- [x] ranges chunked into <= 7-day requests, merged, de-duplicated on `Time`
+- [x] `WEATHER_PROVIDER=conduit_api | conduit_csv | scenario`, default `conduit_csv`; API failure / missing key -> `conduit_csv` with `data_sources: ["conduit_csv (fallback)"]`; missing CSV -> synthetic scenario, labelled; never 500
+- [x] `scripts/conduit_backfill.py --from --to` - pulls history in chunks into the cache and rebuilds `data/conduit_daily.csv` (`make backfill FROM=2026-06-01`)
+- [ ] run the backfill once the key arrives and commit `backend/data/conduit_daily.csv`; drop the GeoCSV export at `backend/data/conduit_raw.csv`
+- [x] `ingest/geocsv.py` (skip `#` metadata, ISO timestamps, blanks -> None, drop `Health != 0`, de-dupe on `Time`) and `ingest/resample.py` (1-min -> hourly + daily: rain sum, T min/max/mean, RH mean, wind mean / gust max, HI max, WBGT max, light index)
+- [x] `ConduitCsvProvider` with replay: virtual clock (`services/clock.py`), `POST /admin/replay/{start|step|reset}` re-assessing every farm
+- [x] every assessment / weather / trigger response includes `data_sources: [...]` and `data_coverage: {real_days, synthetic_days, from, to, station: "JKUAT Conduit@Empathy1 (sensor 61)"}`
+- [x] tests: `test_ingest.py`, `test_conduit_csv.py`, `test_conduit_api.py` (mocked transport: retry, 4xx, non-JSON, cache TTL, chunking, fallback labels)
+- [x] `docs/openapi.json` refrozen; legacy GET-shaped `conduit.py` removed
