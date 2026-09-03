@@ -21,7 +21,8 @@ from app.schemas import (
     TriggerCheckIn,
     TriggerCheckOut,
 )
-from app.services.assessment import farm_payload, fetch_readings, get_or_create_latest, risk_payload, run_assessment
+from app.services.assessment import farm_payload, fetch_readings_described, get_or_create_latest, risk_payload, run_assessment
+from app.services.clock import replay_clock
 
 log = logging.getLogger("farmshield.partners")
 
@@ -139,8 +140,9 @@ def check_insurance_trigger(body: TriggerCheckIn, db: Session = Depends(get_db))
     farm = db.get(models.Farm, body.farm_id)
     if farm is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Farm {body.farm_id} not found")
-    readings, source, scenario = fetch_readings(farm, body.scenario)
-    stage = derive_stage(farm.crop, farm.planting_date, date.today())
+    today = replay_clock.today()
+    readings, source, scenario, sources, cov = fetch_readings_described(farm, body.scenario, end=today)
+    stage = derive_stage(farm.crop, farm.planting_date, today)
     policy = Policy(**body.policy.model_dump())
     try:
         result = check_trigger(readings, farm.crop, stage, policy)
@@ -154,5 +156,6 @@ def check_insurance_trigger(body: TriggerCheckIn, db: Session = Depends(get_db))
         **result.to_dict(),
         "assessed_at": _iso(datetime.now(timezone.utc)),
         "scenario": scenario,
-        "data_sources": [source],
+        "data_sources": sources,
+        "data_coverage": cov,
     }

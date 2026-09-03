@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FarmShield AI",
-    "description": "\n**Hyperlocal climate risk infrastructure for smallholder farmers in Kenya.**\n\nFarmShield turns weather-station readings (JKUAT Conduit station) + crop + growth stage + location into:\n\n* a **Farm Risk Score** - drought, flood, heat-stress and crop-health sub-scores (LOW / MEDIUM / HIGH) and an overall 0-100 score, each backed by human-readable *reasons*;\n* **stage-aware advice** for the farmer in English and Kiswahili, delivered by SMS;\n* **parametric insurance trigger signals** insurers and SACCOs can act on.\n\nScoring is deterministic and rule-based (FAO-56 crop water requirements, KALRO crop guides) so every number is auditable.\nPartners authenticate with an `X-API-Key` header on the `/api/v1` routes.\n",
+    "description": "\n**Hyperlocal climate risk infrastructure for smallholder farmers in Kenya.**\n\nFarmShield turns readings from the **JKUAT Conduit@Empathy1 weather station** (rain gauges, SHT temperature / humidity,\nwind, Heat Index, WBGT, SI1145 light) + crop + growth stage + location into:\n\n* a **Farm Risk Score** - drought, flood, heat-stress and crop-health sub-scores (LOW / MEDIUM / HIGH) and an overall 0-100 score, each backed by human-readable *reasons*;\n* **stage-aware advice** for the farmer in English and Kiswahili, delivered by SMS;\n* **parametric insurance trigger signals** insurers and SACCOs can act on.\n\nScoring is deterministic and rule-based (FAO-56 crop water requirements, KALRO crop guides) so every number is auditable.\nThe station has no soil probe: soil moisture is **modelled** with a Hargreaves ET0 water balance and labelled as such.\nEvery response carries `data_sources` and `data_coverage` (real station days vs synthetic backfill).\nPartners authenticate with an `X-API-Key` header on the `/api/v1` routes.\n",
     "contact": {
       "name": "FarmShield AI - Hack the Weather 2026",
       "url": "https://github.com/Millie-source/FarmShield-AI"
@@ -179,7 +179,7 @@
           "farms"
         ],
         "summary": "Daily weather history used for scoring",
-        "description": "Readings from the active provider (JKUAT Conduit station or the mock replay). Pass `scenario` to preview a mock scenario without switching it globally.",
+        "description": "Daily readings from the active provider (Conduit API, station CSV or synthetic scenario), padded with the synthetic normal scenario when the station history is shorter than `days` - see `data_coverage`. Pass `scenario` to preview a synthetic scenario without switching it globally.",
         "operationId": "farm_weather_farms__farm_id__weather_get",
         "parameters": [
           {
@@ -724,6 +724,147 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/replay": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Replay clock state",
+        "operationId": "get_replay_admin_replay_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStateOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/replay/start": {
+      "post": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Start replaying the station file",
+        "description": "Sets a virtual 'today'. Default start = 7 days after the first real station day so the first assessment already has a week of real data. Re-assesses every farm.",
+        "operationId": "start_replay_admin_replay_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReplayStart"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/replay/step": {
+      "post": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Advance the replay clock",
+        "description": "Moves the virtual today forward by `steps` x step_days (never past the last station day) and re-assesses every farm.",
+        "operationId": "step_replay_admin_replay_step_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReplayStep"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/replay/reset": {
+      "post": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Back to real time",
+        "description": "Deactivates the replay clock and re-assesses every farm against the latest data.",
+        "operationId": "reset_replay_admin_replay_reset_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStateOut"
                 }
               }
             }
@@ -1520,6 +1661,65 @@
         ],
         "title": "BulkSummary"
       },
+      "DataCoverage": {
+        "properties": {
+          "real_days": {
+            "type": "integer",
+            "title": "Real Days",
+            "description": "Days in the window measured by the station"
+          },
+          "synthetic_days": {
+            "type": "integer",
+            "title": "Synthetic Days",
+            "description": "Days filled from the synthetic 'normal' scenario (or a demo scenario)"
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From",
+            "description": "First day in the window"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To",
+            "description": "Last day in the window (the replay clock's today when replaying)"
+          },
+          "station": {
+            "type": "string",
+            "title": "Station"
+          }
+        },
+        "type": "object",
+        "required": [
+          "real_days",
+          "synthetic_days",
+          "station"
+        ],
+        "title": "DataCoverage",
+        "description": "How much of the scoring window is real station data vs. synthetic backfill.",
+        "example": {
+          "from": "2026-08-05",
+          "real_days": 5,
+          "station": "JKUAT Conduit@Empathy1 (sensor 61)",
+          "synthetic_days": 25,
+          "to": "2026-09-03"
+        }
+      },
       "FarmCreate": {
         "properties": {
           "farmer_name": {
@@ -1973,6 +2173,179 @@
           "window_days": 21
         }
       },
+      "ReplayStart": {
+        "properties": {
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date",
+            "description": "Virtual 'today' to start from (default: first station day + 6)"
+          },
+          "step_days": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Step Days",
+            "default": 1
+          },
+          "reassess": {
+            "type": "boolean",
+            "title": "Reassess",
+            "description": "Re-run the engine for every farm at the new date",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "ReplayStart",
+        "example": {
+          "reassess": true,
+          "start_date": "2026-08-12",
+          "step_days": 1
+        }
+      },
+      "ReplayStateOut": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "The date every assessment uses right now (virtual when active, real otherwise)"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "step_days": {
+            "type": "integer",
+            "title": "Step Days"
+          },
+          "data_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data From",
+            "description": "First real station day available"
+          },
+          "data_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data To",
+            "description": "Last real station day available"
+          },
+          "remaining_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Days"
+          },
+          "reassessed": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RiskSummary"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Reassessed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active",
+          "today",
+          "current",
+          "start_date",
+          "step_days",
+          "remaining_days"
+        ],
+        "title": "ReplayStateOut",
+        "example": {
+          "active": true,
+          "current": "2026-08-13",
+          "data_from": "2026-08-06",
+          "data_to": "2026-09-03",
+          "reassessed": [],
+          "remaining_days": 21,
+          "start_date": "2026-08-12",
+          "step_days": 1,
+          "today": "2026-08-13"
+        }
+      },
+      "ReplayStep": {
+        "properties": {
+          "steps": {
+            "type": "integer",
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Steps",
+            "default": 1
+          },
+          "reassess": {
+            "type": "boolean",
+            "title": "Reassess",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "ReplayStep",
+        "example": {
+          "reassess": true,
+          "steps": 1
+        }
+      },
       "RiskHistoryItem": {
         "properties": {
           "assessment_id": {
@@ -2097,14 +2470,26 @@
               }
             ],
             "title": "Scenario",
-            "description": "Mock scenario the readings came from (null for live data)"
+            "description": "Synthetic scenario the readings came from (null for real station data)"
           },
           "data_sources": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Data Sources"
+            "title": "Data Sources",
+            "description": "e.g. ['conduit_csv', 'synthetic:normal (backfill)'] or ['conduit_csv (fallback)']"
+          },
+          "data_coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Real vs synthetic days in the scoring window"
           },
           "readings_used": {
             "type": "integer",
@@ -2201,8 +2586,16 @@
           "assessed_at": "2026-09-03T08:00:00Z",
           "assessment_id": 12,
           "crop": "maize",
+          "data_coverage": {
+            "from": "2026-08-05",
+            "real_days": 5,
+            "station": "JKUAT Conduit@Empathy1 (sensor 61)",
+            "synthetic_days": 25,
+            "to": "2026-09-03"
+          },
           "data_sources": [
-            "mock:dry_spell"
+            "conduit_csv",
+            "synthetic:normal (backfill)"
           ],
           "et0_mm_day": 5.1,
           "farm_id": 1,
@@ -2235,7 +2628,6 @@
             }
           },
           "readings_used": 30,
-          "scenario": "dry_spell",
           "soil_moisture_pct": 18.0,
           "soil_moisture_source": "modelled",
           "stage": {
@@ -2362,12 +2754,12 @@
               "heavy_rain"
             ],
             "title": "Scenario",
-            "description": "Active mock weather scenario"
+            "description": "Active synthetic demo scenario"
           },
           "provider": {
             "type": "string",
             "title": "Provider",
-            "description": "Active weather provider (mock | conduit)"
+            "description": "Active weather provider (conduit_api | conduit_csv | scenario)"
           },
           "available": {
             "items": {
@@ -2704,6 +3096,16 @@
             },
             "type": "array",
             "title": "Data Sources"
+          },
+          "data_coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2726,8 +3128,15 @@
           "assessed_at": "2026-09-03T08:00:00Z",
           "confidence": 1.0,
           "crop": "maize",
+          "data_coverage": {
+            "from": "2026-08-05",
+            "real_days": 0,
+            "station": "JKUAT Conduit@Empathy1 (sensor 61)",
+            "synthetic_days": 30,
+            "to": "2026-09-03"
+          },
           "data_sources": [
-            "mock:dry_spell"
+            "scenario:dry_spell (synthetic)"
           ],
           "evidence": {
             "deficit_mm": 29.6,
@@ -2797,7 +3206,18 @@
           "source": {
             "type": "string",
             "title": "Source",
-            "description": "Data source id, e.g. mock:dry_spell or conduit:jkuat"
+            "description": "Primary data source id, e.g. conduit_csv, conduit_api or scenario:dry_spell (synthetic)"
+          },
+          "data_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Sources",
+            "description": "Primary source plus any synthetic backfill"
+          },
+          "data_coverage": {
+            "$ref": "#/components/schemas/DataCoverage"
           },
           "days": {
             "type": "integer",
@@ -2815,6 +3235,7 @@
         "required": [
           "farm_id",
           "source",
+          "data_coverage",
           "days",
           "readings"
         ],
@@ -2991,7 +3412,7 @@
     },
     {
       "name": "demo",
-      "description": "Live-demo controls: switch the replayed weather scenario."
+      "description": "Live-demo controls: flip the synthetic weather scenario, or replay the real station file day by day."
     },
     {
       "name": "system",

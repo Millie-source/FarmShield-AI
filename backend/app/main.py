@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import alerts, farms, partners, risk
+from app.routers import admin, alerts, farms, partners, risk
 from app.seed import seed_if_empty
 from app.services.assessment import assess_unscored_farms
 
@@ -21,20 +21,23 @@ TAGS = [
     {"name": "risk", "description": "The Farm Risk Score: explainable drought / flood / heat / crop-health scoring with reasons, insurance trigger and advice."},
     {"name": "alerts", "description": "SMS alerts to farmers (Africa's Talking sandbox or console)."},
     {"name": "partners", "description": "API-key protected endpoints for insurers, banks, SACCOs and agribusinesses. Send `X-API-Key`."},
-    {"name": "demo", "description": "Live-demo controls: switch the replayed weather scenario."},
+    {"name": "demo", "description": "Live-demo controls: flip the synthetic weather scenario, or replay the real station file day by day."},
     {"name": "system", "description": "Health and metadata."},
 ]
 
 DESCRIPTION = """
 **Hyperlocal climate risk infrastructure for smallholder farmers in Kenya.**
 
-FarmShield turns weather-station readings (JKUAT Conduit station) + crop + growth stage + location into:
+FarmShield turns readings from the **JKUAT Conduit@Empathy1 weather station** (rain gauges, SHT temperature / humidity,
+wind, Heat Index, WBGT, SI1145 light) + crop + growth stage + location into:
 
 * a **Farm Risk Score** - drought, flood, heat-stress and crop-health sub-scores (LOW / MEDIUM / HIGH) and an overall 0-100 score, each backed by human-readable *reasons*;
 * **stage-aware advice** for the farmer in English and Kiswahili, delivered by SMS;
 * **parametric insurance trigger signals** insurers and SACCOs can act on.
 
 Scoring is deterministic and rule-based (FAO-56 crop water requirements, KALRO crop guides) so every number is auditable.
+The station has no soil probe: soil moisture is **modelled** with a Hargreaves ET0 water balance and labelled as such.
+Every response carries `data_sources` and `data_coverage` (real station days vs synthetic backfill).
 Partners authenticate with an `X-API-Key` header on the `/api/v1` routes.
 """
 
@@ -69,6 +72,7 @@ app.include_router(farms.router)
 app.include_router(risk.router)
 app.include_router(risk.scenario_router)
 app.include_router(alerts.router)
+app.include_router(admin.router)
 app.include_router(partners.router)
 
 

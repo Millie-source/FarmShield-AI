@@ -11,6 +11,7 @@ backend/*.db
 backend/*.db-journal
 backend/tests/*.db
 backend/tests/*.db-journal
+backend/data/cache/
 
 # Node
 node_modules/

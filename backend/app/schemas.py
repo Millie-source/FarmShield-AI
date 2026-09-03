@@ -164,9 +164,25 @@ class WeatherReadingOut(BaseModel):
     synthetic: bool = Field(False, description="True for replayed demo scenarios, False for real station data")
 
 
+class DataCoverage(BaseModel):
+    """How much of the scoring window is real station data vs. synthetic backfill."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"real_days": 5, "synthetic_days": 25, "from": "2026-08-05", "to": "2026-09-03", "station": "JKUAT Conduit@Empathy1 (sensor 61)"}}
+    )
+
+    real_days: int = Field(..., description="Days in the window measured by the station")
+    synthetic_days: int = Field(..., description="Days filled from the synthetic 'normal' scenario (or a demo scenario)")
+    from_: date | None = Field(None, alias="from", description="First day in the window")
+    to: date | None = Field(None, description="Last day in the window (the replay clock's today when replaying)")
+    station: str
+
+
 class WeatherHistoryOut(BaseModel):
     farm_id: int
-    source: str = Field(..., description="Data source id, e.g. mock:dry_spell or conduit:jkuat")
+    source: str = Field(..., description="Primary data source id, e.g. conduit_csv, conduit_api or scenario:dry_spell (synthetic)")
+    data_sources: list[str] = Field(default_factory=list, description="Primary source plus any synthetic backfill")
+    data_coverage: DataCoverage
     days: int
     readings: list[WeatherReadingOut]
 
@@ -318,8 +334,9 @@ class RiskOut(BaseModel):
                     "sms_sw": "FarmShield: Kamau Maize Plot hatari JUU (72/100). Mahindi yanatoa maua, hakuna mvua wiki 3. Mwagilia ndani ya saa 24-48.",
                 },
                 "assessed_at": "2026-09-03T08:00:00Z",
-                "scenario": "dry_spell",
-                "data_sources": ["mock:dry_spell"],
+                "scenario": None,
+                "data_sources": ["conduit_csv", "synthetic:normal (backfill)"],
+                "data_coverage": {"real_days": 5, "synthetic_days": 25, "from": "2026-08-05", "to": "2026-09-03", "station": "JKUAT Conduit@Empathy1 (sensor 61)"},
                 "readings_used": 30,
                 "window_days": 30,
                 "ndvi": None,
@@ -341,8 +358,9 @@ class RiskOut(BaseModel):
     insurance_trigger: InsuranceTriggerOut
     advice: AdviceOut
     assessed_at: datetime
-    scenario: str | None = Field(None, description="Mock scenario the readings came from (null for live data)")
-    data_sources: list[str]
+    scenario: str | None = Field(None, description="Synthetic scenario the readings came from (null for real station data)")
+    data_sources: list[str] = Field(..., description="e.g. ['conduit_csv', 'synthetic:normal (backfill)'] or ['conduit_csv (fallback)']")
+    data_coverage: DataCoverage | None = Field(None, description="Real vs synthetic days in the scoring window")
     readings_used: int
     window_days: int
     ndvi: float | None = Field(None, description="Satellite NDVI if a provider supplied one")
@@ -370,9 +388,45 @@ class RiskHistoryItem(BaseModel):
 
 
 class ScenarioOut(BaseModel):
-    scenario: Scenario = Field(..., description="Active mock weather scenario")
-    provider: str = Field(..., description="Active weather provider (mock | conduit)")
+    scenario: Scenario = Field(..., description="Active synthetic demo scenario")
+    provider: str = Field(..., description="Active weather provider (conduit_api | conduit_csv | scenario)")
     available: list[str]
+
+
+class ReplayStart(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"start_date": "2026-08-12", "step_days": 1, "reassess": True}})
+
+    start_date: date | None = Field(None, description="Virtual 'today' to start from (default: first station day + 6)")
+    step_days: int = Field(1, ge=1, le=30)
+    reassess: bool = Field(True, description="Re-run the engine for every farm at the new date")
+
+
+class ReplayStep(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"steps": 1, "reassess": True}})
+
+    steps: int = Field(1, ge=1, le=365)
+    reassess: bool = True
+
+
+class ReplayStateOut(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "active": True, "today": "2026-08-13", "current": "2026-08-13", "start_date": "2026-08-12", "step_days": 1,
+                "data_from": "2026-08-06", "data_to": "2026-09-03", "remaining_days": 21, "reassessed": [],
+            }
+        }
+    )
+
+    active: bool
+    today: date = Field(..., description="The date every assessment uses right now (virtual when active, real otherwise)")
+    current: date | None
+    start_date: date | None
+    step_days: int
+    data_from: date | None = Field(None, description="First real station day available")
+    data_to: date | None = Field(None, description="Last real station day available")
+    remaining_days: int | None
+    reassessed: list[RiskSummary | None] = Field(default_factory=list)
 
 
 class ScenarioUpdate(BaseModel):
@@ -468,7 +522,8 @@ class TriggerCheckOut(BaseModel):
                 "policy": {"type": "drought", "window_days": 21, "rainfall_threshold_mm": 30.0, "critical_stages_only": True},
                 "assessed_at": "2026-09-03T08:00:00Z",
                 "scenario": "dry_spell",
-                "data_sources": ["mock:dry_spell"],
+                "data_sources": ["scenario:dry_spell (synthetic)"],
+                "data_coverage": {"real_days": 0, "synthetic_days": 30, "from": "2026-08-05", "to": "2026-09-03", "station": "JKUAT Conduit@Empathy1 (sensor 61)"},
             }
         }
     )
@@ -485,6 +540,7 @@ class TriggerCheckOut(BaseModel):
     assessed_at: datetime
     scenario: str | None
     data_sources: list[str]
+    data_coverage: DataCoverage | None = None
 
 
 # ------------------------------------------------------------------- alerts ----

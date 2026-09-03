@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.db import get_db
 from app.schemas import ApiError, FarmCreate, FarmOut, Scenario, WeatherHistoryOut
-from app.services.assessment import farm_payload, fetch_readings, run_assessment
+from app.services.assessment import farm_payload, fetch_readings_described, run_assessment
 
 log = logging.getLogger("farmshield.farms")
 router = APIRouter(prefix="/farms", tags=["farms"])
@@ -88,7 +88,7 @@ def delete_farm(farm: models.Farm = Depends(get_farm_or_404), db: Session = Depe
     "/{farm_id}/weather",
     response_model=WeatherHistoryOut,
     summary="Daily weather history used for scoring",
-    description="Readings from the active provider (JKUAT Conduit station or the mock replay). Pass `scenario` to preview a mock scenario without switching it globally.",
+    description="Daily readings from the active provider (Conduit API, station CSV or synthetic scenario), padded with the synthetic normal scenario when the station history is shorter than `days` - see `data_coverage`. Pass `scenario` to preview a synthetic scenario without switching it globally.",
     responses={404: {"model": ApiError}},
 )
 def farm_weather(
@@ -96,10 +96,12 @@ def farm_weather(
     days: int = Query(30, ge=1, le=30, description="Number of days of history"),
     scenario: Scenario | None = Query(None, description="Force a mock scenario for this call"),
 ) -> dict:
-    readings, source, _ = fetch_readings(farm, scenario, days=days)
+    readings, source, _, sources, cov = fetch_readings_described(farm, scenario, days=days)
     return {
         "farm_id": farm.id,
         "source": source,
+        "data_sources": sources,
+        "data_coverage": cov,
         "days": len(readings),
         "readings": [r.__dict__ for r in readings],
     }

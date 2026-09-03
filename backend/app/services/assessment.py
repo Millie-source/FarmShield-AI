@@ -12,8 +12,9 @@ from app.db import SessionLocal
 from app.engine import Policy, assess, check_trigger, derive_stage, get_crop
 from app.engine.types import Reading
 from app.providers.satellite.base import get_satellite_provider
-from app.providers.weather import get_weather_provider
+from app.providers.weather import describe, get_weather_provider
 from app.services.advisor import generate_advice
+from app.services.clock import replay_clock
 
 log = logging.getLogger("farmshield.assessment")
 
@@ -32,10 +33,23 @@ def as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def fetch_readings(farm: models.Farm, scenario: str | None = None, days: int = HISTORY_DAYS) -> tuple[list[Reading], str, str | None]:
+def fetch_readings(
+    farm: models.Farm, scenario: str | None = None, days: int = HISTORY_DAYS, end: date | None = None
+) -> tuple[list[Reading], str, str | None]:
+    """(readings, primary source id, scenario). ``end`` defaults to the replay clock's today."""
     provider = get_weather_provider(scenario)
-    readings = provider.get_history(farm.lat, farm.lon, days=days)
+    readings = provider.get_history(farm.lat, farm.lon, days=days, end=end or replay_clock.today())
     return readings, provider.source_id(), provider.scenario
+
+
+def fetch_readings_described(
+    farm: models.Farm, scenario: str | None = None, days: int = HISTORY_DAYS, end: date | None = None
+) -> tuple[list[Reading], str, str | None, list[str], dict]:
+    """fetch_readings + (data_sources, data_coverage)."""
+    provider = get_weather_provider(scenario)
+    readings = provider.get_history(farm.lat, farm.lon, days=days, end=end or replay_clock.today())
+    sources, cov = describe(provider, readings)
+    return readings, provider.source_id(), provider.scenario, sources, cov
 
 
 def _persist_readings(db: Session, farm: models.Farm, readings: list[Reading], source: str) -> None:
@@ -64,8 +78,8 @@ def _persist_readings(db: Session, farm: models.Farm, readings: list[Reading], s
 
 def run_assessment(db: Session, farm: models.Farm, scenario: str | None = None, today: date | None = None) -> models.RiskAssessment:
     """Run the full pipeline for one farm and persist the result. Raises only on engine input errors."""
-    today = today or date.today()
-    readings, source, used_scenario = fetch_readings(farm, scenario)
+    today = today or replay_clock.today()
+    readings, source, used_scenario, sources, cov = fetch_readings_described(farm, scenario, end=today)
     stage = derive_stage(farm.crop, farm.planting_date, today)
 
     sat = get_satellite_provider()
@@ -80,7 +94,7 @@ def run_assessment(db: Session, farm: models.Farm, scenario: str | None = None, 
     advice = generate_advice(a, trigger, farm.name, readings)
 
     assessed_at = datetime.now(timezone.utc)
-    data_sources = [source] + ([sat.source_id()] if ndvi is not None and sat.source_id() else [])
+    data_sources = sources + ([sat.source_id()] if ndvi is not None and sat.source_id() else [])
     engine_dict = a.to_dict()
 
     payload = {
@@ -95,6 +109,7 @@ def run_assessment(db: Session, farm: models.Farm, scenario: str | None = None, 
         "assessed_at": _iso(assessed_at),
         "scenario": used_scenario,
         "data_sources": data_sources,
+        "data_coverage": cov,
         "readings_used": a.readings_used,
         "window_days": a.window_days,
         "ndvi": ndvi,
@@ -173,7 +188,7 @@ def risk_summary(row: models.RiskAssessment | None) -> dict | None:
 
 
 def farm_payload(db: Session, farm: models.Farm, today: date | None = None) -> dict:
-    today = today or date.today()
+    today = today or replay_clock.today()
     stage = derive_stage(farm.crop, farm.planting_date, today)
     return {
         "id": farm.id,

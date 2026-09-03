@@ -1,7 +1,8 @@
-"""MockWeatherProvider: replays data/sample_readings.json re-dated to end today.
+"""ScenarioWeatherProvider: replays the SYNTHETIC demo scenarios (normal | dry_spell | heavy_rain).
 
-A process-wide scenario switch (normal | dry_spell | heavy_rain) lets the pitch
-flip conditions live; individual calls can still override it.
+Used for the live "flip the weather" pitch moment and for tests - it is not station data and every
+reading is flagged ``synthetic``.  A process-wide scenario switch lets the demo flip conditions;
+individual calls can still override it.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from .base import WeatherProvider
 
 
 class ScenarioState:
-    """Thread-safe holder for the active mock scenario."""
+    """Thread-safe holder for the active demo scenario."""
 
     def __init__(self, initial: str = "normal") -> None:
         self._lock = threading.Lock()
@@ -37,8 +38,8 @@ class ScenarioState:
 scenario_state = ScenarioState()
 
 
-class MockWeatherProvider(WeatherProvider):
-    name = "mock"
+class ScenarioWeatherProvider(WeatherProvider):
+    name = "scenario"
 
     def __init__(self, scenario: str | None = None) -> None:
         self._override = scenario
@@ -48,8 +49,11 @@ class MockWeatherProvider(WeatherProvider):
         return self._override or scenario_state.current
 
     def source_id(self) -> str:
-        return f"mock:{self.scenario}"
+        return f"scenario:{self.scenario} (synthetic)"
 
-    def get_history(self, lat: float, lon: float, days: int = 30) -> list[Reading]:
-        readings = load_sample_readings(self.scenario, end_date=date.today())
+    def get_history(self, lat: float, lon: float, days: int = 30, end: date | None = None) -> list[Reading]:
+        readings = load_sample_readings(self.scenario, end_date=end or date.today())
         return readings[-days:] if days < len(readings) else readings
+
+
+MockWeatherProvider = ScenarioWeatherProvider  # backwards-compatible alias

@@ -118,11 +118,11 @@ class ConduitWeatherProvider(WeatherProvider):
     def scenario(self) -> str | None:
         return None if self._last_ok else self.fallback.scenario
 
-    def get_history(self, lat: float, lon: float, days: int = 30) -> list[Reading]:
+    def get_history(self, lat: float, lon: float, days: int = 30, end: date | None = None) -> list[Reading]:
         if not self.base_url:
             log.warning("CONDUIT_API_URL not set; using %s", self.fallback.source_id())
             self._last_ok = False
-            return self.fallback.get_history(lat, lon, days)
+            return self.fallback.get_history(lat, lon, days, end)
         headers = {"Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -140,4 +140,4 @@ class ConduitWeatherProvider(WeatherProvider):
         except Exception as exc:  # noqa: BLE001 - degrade gracefully, never 500
             log.warning("Conduit station unreachable (%s); falling back to %s", exc, self.fallback.source_id())
             self._last_ok = False
-            return self.fallback.get_history(lat, lon, days)
+            return self.fallback.get_history(lat, lon, days, end)

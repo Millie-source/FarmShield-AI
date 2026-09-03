@@ -86,7 +86,8 @@ def test_assess_returns_full_risk_payload(client):
     assert d["overall"]["label"].endswith("CLIMATE RISK")
     assert d["advice"]["source"] in ("gemini", "fallback")
     assert len(d["advice"]["sms_en"]) <= 160 and len(d["advice"]["sms_sw"]) <= 160
-    assert d["data_sources"] == ["mock:normal"]
+    assert d["data_sources"] == ["scenario:normal (synthetic)"]
+    assert d["data_coverage"]["synthetic_days"] == 30 and d["data_coverage"]["real_days"] == 0
     assert d["assessed_at"].endswith("Z")
 
 
@@ -122,7 +123,7 @@ def test_weather_history(client):
     r = client.get("/farms/1/weather?days=7&scenario=dry_spell")
     assert r.status_code == 200
     d = r.json()
-    assert d["days"] == 7 and d["source"] == "mock:dry_spell"
+    assert d["days"] == 7 and d["source"] == "scenario:dry_spell (synthetic)"
     assert sum(x["rainfall_mm"] for x in d["readings"]) < 1
 
 

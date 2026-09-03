@@ -12,11 +12,16 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./farmshield.db"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    # Weather data
-    weather_provider: str = "mock"  # mock | conduit
-    conduit_api_url: str = ""
-    conduit_api_key: str = ""
-    default_scenario: str = "normal"  # normal | dry_spell | heavy_rain
+    # Weather data: conduit_api (live Conduit@Empathy API) | conduit_csv (station export, default) | scenario (synthetic demo)
+    weather_provider: str = "conduit_csv"
+    conduit_api_url: str = "https://conduit.jhubafrica.com/data.php"
+    conduit_api_key: str = ""  # never logged
+    conduit_email: str = ""  # never logged
+    conduit_daily_csv: str = "data/conduit_daily.csv"  # relative to backend/
+    conduit_raw_csv: str = "data/conduit_raw.csv"  # GeoCSV export; ingested to the daily file if present
+    conduit_cache_dir: str = "data/cache"
+    conduit_cache_ttl_min: int = 15  # for windows that include today; past windows are cached forever
+    default_scenario: str = "normal"  # normal | dry_spell | heavy_rain (synthetic demo + backfill padding)
 
     # Advice generation (Gemini)
     gemini_api_key: str = ""
